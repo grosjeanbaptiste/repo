@@ -4,6 +4,7 @@ mod delegate;
 mod fakes;
 mod naming;
 mod pipeline;
+mod root;
 
 use actit::github::GhNames;
 use actit::process::KagProcess;
@@ -11,7 +12,6 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use naming::Query;
 use pipeline::{Dotfiles, NewOpts, Source};
-use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -50,13 +50,6 @@ enum Cmd {
     Other(Vec<String>),
 }
 
-fn expand(root: &str) -> Result<PathBuf> {
-    match root.strip_prefix("~/") {
-        Some(rest) => Ok(PathBuf::from(std::env::var("HOME")?).join(rest)),
-        None => Ok(PathBuf::from(root)),
-    }
-}
-
 fn main() -> Result<()> {
     match Cli::parse().cmd {
         Cmd::Other(args) => delegate::project(&args),
@@ -83,7 +76,7 @@ fn main() -> Result<()> {
             let opts = NewOpts {
                 kind,
                 source,
-                root: expand(&root)?,
+                root: root::expand(&root, std::env::var("HOME").ok())?,
                 no_push,
                 dry_run,
             };

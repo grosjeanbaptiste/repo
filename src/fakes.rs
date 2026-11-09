@@ -4,11 +4,13 @@ use actit::contains::Listing;
 use actit::error::Error;
 use actit::ports::RepoNames;
 use anyhow::Result;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 pub struct Registry {
     taken: Vec<String>,
     failure: Option<Error>,
+    /// Searches still answered before `failure` starts (0 = fail at once).
+    grace: Cell<usize>,
 }
 
 impl Registry {
@@ -16,6 +18,7 @@ impl Registry {
         Self {
             taken: vec![],
             failure: None,
+            grace: Cell::new(0),
         }
     }
 
@@ -23,6 +26,7 @@ impl Registry {
         Self {
             taken: names.iter().map(|s| s.to_string()).collect(),
             failure: None,
+            grace: Cell::new(0),
         }
     }
 
@@ -30,6 +34,19 @@ impl Registry {
         Self {
             taken: vec![],
             failure: Some(Error::Github(message.into())),
+            grace: Cell::new(0),
+        }
+    }
+
+    /// Answers `n` searches (naming `taken` as used), then GitHub fails:
+    /// a rate limit in the middle of a run.
+    pub fn failing_after(taken: &[&str], n: usize, message: &str) -> Self {
+        Self {
+            grace: Cell::new(n),
+            ..Self {
+                failure: Some(Error::Github(message.into())),
+                ..Self::taking(taken)
+            }
         }
     }
 }
@@ -42,10 +59,18 @@ impl RepoNames for Registry {
         Ok(false)
     }
     fn search(&self, name: &str) -> Result<Vec<String>, Error> {
+        let grace = self.grace.get();
         match &self.failure {
-            Some(e) => Err(e.clone()),
-            None if self.taken.iter().any(|t| t == name) => Ok(vec![format!("bob/{name}")]),
-            None => Ok(vec![]),
+            Some(e) if grace == 0 => Err(e.clone()),
+            _ => {
+                self.grace.set(grace.saturating_sub(1));
+                let hit = self.taken.iter().any(|t| t == name);
+                Ok(if hit {
+                    vec![format!("bob/{name}")]
+                } else {
+                    vec![]
+                })
+            }
         }
     }
     fn contains(&self, _: &str) -> Result<Listing, Error> {
