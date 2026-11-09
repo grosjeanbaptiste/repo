@@ -51,7 +51,8 @@ pub fn taken(root: &Path, name: &str, names: &impl RepoNames) -> Result<bool> {
     if !is_one_component(name) {
         return Err(actit::error::Error::InvalidName(name.to_string()).into());
     }
-    if root.join(name).exists() {
+    // symlink_metadata: a dangling symlink is "missing" to exists() but still blocks mkdir.
+    if root.join(name).symlink_metadata().is_ok() {
         return Ok(true);
     }
     Ok(check_anywhere(name, names)?.status == NameStatus::Taken)

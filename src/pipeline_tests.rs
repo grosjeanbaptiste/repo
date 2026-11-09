@@ -152,3 +152,66 @@ fn kind_and_a_root_with_spaces_reach_dotfiles_verbatim() {
     let call = scaffold.calls.borrow()[0].clone();
     assert_eq!((call[1].as_str(), call[4].as_str()), ("app/python", spaced.to_str().unwrap_or("")));
 }
+
+#[test]
+fn dry_run_still_refuses_a_taken_name() {
+    let (dir, scaffold) = (root(), Recorder::default());
+    let o = NewOpts { dry_run: true, ..opts(named("ifdck"), dir.path()) };
+    assert!(run(&o, &Registry::taking(&["ifdck"]), &scaffold).is_err());
+}
+
+#[test]
+fn github_failing_in_the_middle_of_candidates_aborts_without_scaffolding() {
+    let (dir, scaffold) = (root(), Recorder::default());
+    let first = naming::candidates(&query()).unwrap_or_default().remove(0);
+    let registry = Registry::failing_after(&[first.as_str()], 1, "rate limit");
+    let err = run(&opts(Source::Generated(query()), dir.path()), &registry, &scaffold);
+    assert!(err.err().is_some_and(|e| e.to_string().contains("rate limit")));
+    assert!(scaffold.calls.borrow().is_empty());
+}
+
+#[test]
+fn a_limit_of_one_with_that_candidate_taken_finds_nothing() {
+    let (dir, scaffold) = (root(), Recorder::default());
+    let one = Query { limit: 1, ..query() };
+    let first = naming::candidates(&one).unwrap_or_default().remove(0);
+    let err = run(&opts(Source::Generated(one), dir.path()), &Registry::taking(&[first.as_str()]), &scaffold);
+    assert!(err.err().is_some_and(|e| e.to_string().contains("no free name among 1")));
+}
+
+#[test]
+fn several_prefixes_all_produce_candidates() {
+    let two = Query { prefixes: vec!["act".into(), "acte".into()], ..query() };
+    let all = naming::candidates(&two).unwrap_or_default();
+    assert!(!all.is_empty() && all.iter().all(|n| n.starts_with("act")), "{all:?}");
+}
+
+#[test]
+fn github_length_and_git_suffix_rules_apply_to_a_named_repository() {
+    let dir = root();
+    for bad in ["a".repeat(101), "ifdck.git".to_string(), "IFDCK.GIT".to_string()] {
+        let (message, calls) = refused(&bad, &dir);
+        assert!(message.contains("not a valid"), "{bad:?}: {message}");
+        assert_eq!(calls, 0, "{bad:?}");
+    }
+    let hundred = "a".repeat(100);
+    let scaffold = Recorder::default();
+    assert!(run(&opts(named(&hundred), dir.path()), &Registry::free(), &scaffold).is_ok());
+}
+
+#[test]
+fn a_dangling_symlink_counts_as_an_existing_directory() {
+    let (dir, scaffold) = (root(), Recorder::default());
+    assert!(std::os::unix::fs::symlink("/nonexistent", dir.path().join("ifdck")).is_ok());
+    let err = run(&opts(named("ifdck"), dir.path()), &Registry::free(), &scaffold);
+    assert!(err.err().is_some_and(|e| e.to_string().contains("ifdck is taken")));
+    assert!(scaffold.calls.borrow().is_empty());
+}
+
+#[test]
+fn a_file_with_the_name_counts_as_taken() {
+    let (dir, scaffold) = (root(), Recorder::default());
+    assert!(std::fs::write(dir.path().join("ifdck"), b"x").is_ok());
+    assert!(run(&opts(named("ifdck"), dir.path()), &Registry::free(), &scaffold).is_err());
+    assert!(scaffold.calls.borrow().is_empty());
+}
