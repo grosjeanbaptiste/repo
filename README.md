@@ -6,6 +6,24 @@ Manage git repositories by reusing what exists:
 - **`dotfiles project`** scaffolds it (mkdir, git init, template, commit, GitHub) and handles `list`, `status`, `pr`, `doctor`, …
 - **actit** (Rust library, pinned by commit) checks that the name is free on GitHub, under any owner, through `gh`.
 
+## Install
+
+Needs Rust 1.85 or newer, SSH access to GitHub (the actname and actit libraries are
+fetched over ssh), `gh` authenticated (`gh auth login`) and `dotfiles` on `PATH`.
+
+```bash
+CARGO_NET_GIT_FETCH_WITH_CLI=true \
+  cargo install --locked --git https://github.com/grosjeanbaptiste/repo
+export PATH="$HOME/.cargo/bin:$PATH"
+repo new package/rust --prefix act --domain "git repositories tooling" --dry-run
+```
+
+From a checkout: `cargo install --locked --path .` (`.cargo/config.toml` already sets
+the git fetch). The binary is `~/.cargo/bin/repo`; update by re-running the first
+command with `--force`.
+
+## Usage
+
 ```bash
 repo new package/rust --prefix act --domain "git repositories tooling" [--root ~/Source] [--no-push] [--dry-run]
 repo new package/rust --name ifdck --no-push   # exact name, still checked
