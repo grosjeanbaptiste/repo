@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "actit"
 version = "0.1.0"
-source = "git+ssh://git@github.com/grosjeanbaptiste/Actit.git?rev=dcff066e6caaba0e8f2b3d8d9b8f1f7a588e80c1#dcff066e6caaba0e8f2b3d8d9b8f1f7a588e80c1"
+source = "git+ssh://git@github.com/grosjeanbaptiste/Actit.git?rev=9b2af7784546480604ff804a13906e61415be460#9b2af7784546480604ff804a13906e61415be460"
 dependencies = [
  "serde",
  "serde_json",
