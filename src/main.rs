@@ -1,11 +1,16 @@
 //! repo — name with actname, scaffold/manage with `dotfiles project`, PRs with gh.
 mod delegate;
+#[cfg(test)]
+mod fakes;
 mod naming;
+mod pipeline;
 
 use actit::github::GhNames;
 use actit::process::KagProcess;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use naming::Query;
+use pipeline::{Dotfiles, NewOpts, Source};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -17,14 +22,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Name a new repository with actname, then scaffold it (mkdir, git init, GitHub).
+    /// Name a new repository (actname, or --name), check it, then scaffold it.
     New {
         /// Project type, as in `dotfiles project setup` (e.g. package/rust).
         kind: String,
-        #[arg(long = "prefix", required = true)]
+        /// Use this exact name instead of asking actname; it must be free.
+        #[arg(long, conflicts_with_all = ["prefixes", "domain"])]
+        name: Option<String>,
+        #[arg(long = "prefix", required_unless_present = "name")]
         prefixes: Vec<String>,
-        #[arg(long)]
-        domain: String,
+        #[arg(long, required_unless_present = "name")]
+        domain: Option<String>,
         #[arg(long, default_value_t = 10)]
         max_length: usize,
         #[arg(long, default_value_t = 20)]
@@ -54,6 +62,7 @@ fn main() -> Result<()> {
         Cmd::Other(args) => delegate::project(&args),
         Cmd::New {
             kind,
+            name,
             prefixes,
             domain,
             max_length,
@@ -62,22 +71,28 @@ fn main() -> Result<()> {
             no_push,
             dry_run,
         } => {
-            let root = expand(&root)?;
-            let names = GhNames::new(KagProcess::new("gh"));
-            let q = naming::Query {
-                prefixes,
-                domain,
-                max_length,
-                limit,
+            let source = match name {
+                Some(name) => Source::Named(name),
+                None => Source::Generated(Query {
+                    prefixes,
+                    domain: domain.unwrap_or_default(),
+                    max_length,
+                    limit,
+                }),
             };
-            let name = naming::first_free(&naming::candidates(&q)?, |n| {
-                naming::taken(&root, n, &names)
-            })?;
+            let opts = NewOpts {
+                kind,
+                source,
+                root: expand(&root)?,
+                no_push,
+                dry_run,
+            };
+            let names = GhNames::new(KagProcess::new("gh"));
+            let name = pipeline::run(&opts, &names, &Dotfiles)?;
             if dry_run {
                 println!("{name}");
-                return Ok(());
             }
-            delegate::project(&delegate::setup_args(&kind, &name, &root, no_push))
+            Ok(())
         }
     }
 }
