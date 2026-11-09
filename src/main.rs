@@ -1,8 +1,9 @@
 //! repo — name with actname, scaffold/manage with `dotfiles project`, PRs with gh.
 mod delegate;
-mod github;
 mod naming;
 
+use actit::github::GhNames;
+use actit::process::KagProcess;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -62,7 +63,7 @@ fn main() -> Result<()> {
             dry_run,
         } => {
             let root = expand(&root)?;
-            let owner = github::owner()?;
+            let names = GhNames::new(KagProcess::new("gh"));
             let q = naming::Query {
                 prefixes,
                 domain,
@@ -70,7 +71,7 @@ fn main() -> Result<()> {
                 limit,
             };
             let name = naming::first_free(&naming::candidates(&q)?, |n| {
-                Ok(root.join(n).exists() || github::exists(&owner, n)?)
+                naming::taken(&root, n, &names)
             })?;
             if dry_run {
                 println!("{name}");

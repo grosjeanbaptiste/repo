@@ -1,6 +1,9 @@
 //! Name selection: actname proposes, the caller's `taken` check filters.
+use actit::name::{NameStatus, check_anywhere};
+use actit::ports::RepoNames;
 use actname::{InMemoryLexicon, NamingCriteria, NamingService, Strategy};
 use anyhow::{Context, Result};
+use std::path::Path;
 
 pub struct Query {
     pub prefixes: Vec<String>,
@@ -34,9 +37,71 @@ pub fn first_free(names: &[String], mut taken: impl FnMut(&str) -> Result<bool>)
     anyhow::bail!("no free name among {} actname candidates", names.len())
 }
 
+/// A name is taken when its directory exists or actit finds it on GitHub, under any owner.
+pub fn taken(root: &Path, name: &str, names: &impl RepoNames) -> Result<bool> {
+    if root.join(name).exists() {
+        return Ok(true);
+    }
+    Ok(check_anywhere(name, names)?.status == NameStatus::Taken)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actit::contains::Listing;
+    use actit::error::Error;
+
+    struct Registry(Result<Vec<String>, Error>);
+
+    impl RepoNames for Registry {
+        fn owner(&self) -> Result<String, Error> {
+            Ok("me".into())
+        }
+        fn exists(&self, _: &str, _: &str) -> Result<bool, Error> {
+            Ok(false)
+        }
+        fn search(&self, _: &str) -> Result<Vec<String>, Error> {
+            self.0.clone()
+        }
+        fn contains(&self, _: &str) -> Result<Listing, Error> {
+            Ok(Listing {
+                total: 0,
+                names: vec![],
+            })
+        }
+    }
+
+    fn taken_by(found: &[&str]) -> Registry {
+        Registry(Ok(found.iter().map(|s| s.to_string()).collect()))
+    }
+
+    #[test]
+    fn existing_directory_is_taken_without_asking_github() {
+        let dir = std::env::temp_dir();
+        let boom = Registry(Err(Error::Github("must not be called".into())));
+        let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        let parent = dir.parent().unwrap_or(&dir);
+        assert!(taken(parent, name, &boom).unwrap_or(false));
+    }
+
+    #[test]
+    fn name_found_under_another_owner_is_taken() {
+        let root = Path::new("/no/such/root");
+        assert!(taken(root, "pr", &taken_by(&["bob/pr"])).unwrap_or(false));
+    }
+
+    #[test]
+    fn name_nobody_has_is_free() {
+        let root = Path::new("/no/such/root");
+        assert!(!taken(root, "zzqq", &taken_by(&[])).unwrap_or(true));
+    }
+
+    #[test]
+    fn github_failure_is_an_error() {
+        let root = Path::new("/no/such/root");
+        let boom = Registry(Err(Error::Github("rate limit".into())));
+        assert!(taken(root, "pr", &boom).is_err());
+    }
 
     fn names() -> Vec<String> {
         ["a", "b", "c"].map(String::from).to_vec()
