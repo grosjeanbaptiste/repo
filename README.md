@@ -35,7 +35,9 @@ repo license [path]                             # none | proprietary | open | ot
 repo list | scan [ROOT...] | status [NAME]      # machine-wide project registry ($DOTFILES_STATE_ROOT/projects.txt)
 repo rename-branch [PATH] [--from master] [--to main] [--dry-run] [--delete-old]   # default branch, local + GitHub
 repo push [--dir PATH] [--dry-run] [--yes]      # push every nested repo that is clean and ahead; asks first
-repo status | list | pr create | doctor         # forwarded to `dotfiles project`
+repo pr create [--base B] [--title T] [--body D]    # PR for the current branch; title/description asked on stdin if not given
+repo pr merge [N] [--yes]                           # merge commit, branch deleted, base fast-forwarded locally
+repo doctor | workspace | audit | …                 # forwarded to `dotfiles project`
 ```
 
 Names whose directory exists, or that any GitHub owner already uses, are skipped.
