@@ -25,6 +25,33 @@ impl Exec for Process {
     }
 }
 
+/// Like `Process`, but stderr is captured into the error: for probes whose
+/// failure is an expected answer (no remote, not a repository), not noise.
+pub struct Quiet;
+
+impl Exec for Quiet {
+    fn run(&self, prog: &str, args: &[&str], cwd: Option<&Path>) -> Result<String> {
+        let mut cmd = Command::new(prog);
+        cmd.args(args);
+        if let Some(dir) = cwd {
+            cmd.current_dir(dir);
+        }
+        let out = cmd
+            .output()
+            .with_context(|| format!("{prog} not found: repo needs it"))?;
+        if !out.status.success() {
+            let why = String::from_utf8_lossy(&out.stderr);
+            bail!(
+                "{prog} {} exited with {}: {}",
+                args.join(" "),
+                out.status,
+                why.trim()
+            );
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+}
+
 /// Proleptic Gregorian year of a Unix timestamp (days-from-civil, H. Hinnant).
 pub fn year_of(secs: u64) -> u64 {
     let z = secs / 86_400 + 719_468;
@@ -94,6 +121,40 @@ impl Scaffold for Native {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn quiet_captures_stderr_into_the_error_instead_of_printing_it() {
+        let e = Quiet
+            .run("sh", &["-c", "echo boom >&2; exit 4"], None)
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_default();
+        assert!(e.contains("exited with") && e.contains("boom"), "{e}");
+    }
+
+    #[test]
+    fn quiet_returns_stdout_on_success_and_names_a_missing_program() {
+        assert_eq!(ok(Quiet.run("echo", &["hi"], None)), "hi\n");
+        let e = Quiet
+            .run("zz-no-such-tool", &[], None)
+            .err()
+            .map(|e| format!("{e:#}"))
+            .unwrap_or_default();
+        assert!(
+            e.contains("zz-no-such-tool not found: repo needs it"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn quiet_runs_in_the_given_directory() {
+        let d = ok(tempfile::tempdir());
+        let want = ok(d.path().canonicalize());
+        assert_eq!(
+            ok(Quiet.run("pwd", &[], Some(d.path()))).trim(),
+            want.to_string_lossy()
+        );
+    }
+
     fn ok<T, E: std::fmt::Display>(r: std::result::Result<T, E>) -> T {
         r.unwrap_or_else(|e| panic!("{e}"))
     }

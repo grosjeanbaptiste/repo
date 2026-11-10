@@ -5,6 +5,7 @@ mod fakes;
 mod license;
 mod naming;
 mod pipeline;
+mod registry;
 mod root;
 mod scaffold;
 
@@ -80,6 +81,12 @@ enum Cmd {
         #[arg(default_value = ".")]
         path: String,
     },
+    /// List the registered projects (name and path).
+    List,
+    /// Find git repositories (default root: $HOME) and refresh the registry.
+    Scan { roots: Vec<String> },
+    /// Branch, ahead/behind, dirty files and remote for one project, or a table of all.
+    Status { name: Option<String> },
     /// Any other command goes to `dotfiles project` (list, status, pr, doctor, …).
     #[command(external_subcommand)]
     Other(Vec<String>),
@@ -88,6 +95,9 @@ enum Cmd {
 fn main() -> Result<()> {
     match Cli::parse().cmd {
         Cmd::Other(args) => delegate::project(&args),
+        Cmd::List => registry::command::run_list(),
+        Cmd::Scan { roots } => registry::command::run_scan(&roots),
+        Cmd::Status { name } => registry::command::run_status(name.as_deref()),
         Cmd::License { path } => {
             println!("{}", license::doctor_line(Path::new(&path))?);
             Ok(())

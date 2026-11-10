@@ -4,7 +4,8 @@ Manage git repositories by reusing what exists:
 
 - **actname** (Rust library, pinned by commit) names the repository.
 - **`repo` itself** scaffolds it (`src/scaffold/`: mkdir, git init, templates from `~/dotfiles/project-templates`, commit, private GitHub repo via `gh`); `--via-dotfiles` uses the old `dotfiles project setup` instead.
-- **`dotfiles project`** handles `list`, `status`, `pr`, `doctor`, …
+- **`dotfiles project`** still handles `pr`, `doctor`, `workspace`, `audit`, `install`, `release`, `deploy`, `push`; they move into `repo` one by one (see `CONTEXT.md`).
+- **Prerequisites:** `git` and `gh` on `PATH`; templates are read from `~/dotfiles/project-templates` (`PROJECT_REPO_ROOT` / `DOTFILES_REPO_ROOT` override the root).
 - **actit** (Rust library, pinned by commit) checks that the name is free on GitHub, under any owner, through `gh`.
 
 ## Install
@@ -31,6 +32,7 @@ repo new package/rust --name ifdck --no-push   # exact name, still checked
 repo check [path] [--type t]                    # audit a project against the templates
 repo apply [path] [--type t] [--force|--diff]   # drop/refresh the standard files
 repo license [path]                             # none | proprietary | open | other
+repo list | scan [ROOT...] | status [NAME]      # machine-wide project registry ($DOTFILES_STATE_ROOT/projects.txt)
 repo status | list | pr create | doctor         # forwarded to `dotfiles project`
 ```
 
