@@ -5,6 +5,7 @@ mod fakes;
 mod license;
 mod naming;
 mod pipeline;
+mod push;
 mod registry;
 mod root;
 mod scaffold;
@@ -17,7 +18,7 @@ use naming::Query;
 use pipeline::{Dotfiles, NewOpts, Source};
 use scaffold::apply::Mode;
 use scaffold::command;
-use scaffold::native::Native;
+use scaffold::native::{Native, Process, Quiet};
 use scaffold::{plan, prompt};
 use std::path::Path;
 
@@ -87,6 +88,18 @@ enum Cmd {
     Scan { roots: Vec<String> },
     /// Branch, ahead/behind, dirty files and remote for one project, or a table of all.
     Status { name: Option<String> },
+    /// Push a repository and every repository nested under it (clean tree, ahead of its upstream).
+    Push {
+        /// Root to scan.
+        #[arg(long, default_value = ".")]
+        dir: String,
+        /// Report what would be pushed; touch nothing.
+        #[arg(long, short = 'n')]
+        dry_run: bool,
+        /// Push without asking.
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
     /// Any other command goes to `dotfiles project` (list, status, pr, doctor, …).
     #[command(external_subcommand)]
     Other(Vec<String>),
@@ -98,6 +111,22 @@ fn main() -> Result<()> {
         Cmd::List => registry::command::run_list(),
         Cmd::Scan { roots } => registry::command::run_scan(&roots),
         Cmd::Status { name } => registry::command::run_status(name.as_deref()),
+        Cmd::Push { dir, dry_run, yes } => {
+            let opts = push::Opts {
+                dir: dir.into(),
+                dry_run,
+                yes,
+            };
+            let (mut out, mut err) = (std::io::stdout().lock(), std::io::stderr().lock());
+            push::run(
+                &opts,
+                &Quiet,
+                &Process,
+                &mut std::io::stdin().lock(),
+                &mut out,
+                &mut err,
+            )
+        }
         Cmd::License { path } => {
             println!("{}", license::doctor_line(Path::new(&path))?);
             Ok(())
