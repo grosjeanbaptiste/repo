@@ -10,6 +10,7 @@ actname = { git = "ssh://git@github.com/grosjeanbaptiste/Actname.git", rev = "00
 actit = { git = "ssh://git@github.com/grosjeanbaptiste/Actit.git", rev = "9b2af7784546480604ff804a13906e61415be460" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
 
 [lints.rust]
 unsafe_code = "forbid"
