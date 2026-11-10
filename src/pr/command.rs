@@ -1,6 +1,7 @@
-//! The real ports of `repo pr`: gh and git on the process, stdin/stdout, the clock.
+//! The real ports of `repo pr`: the platform (through actautoma) and git on the process, stdin/stdout, the clock.
 use super::{create, merge};
 use crate::scaffold::native::{Process, Quiet};
+use actautoma::{gh::Gh, process::ProcessRunner};
 use anyhow::Result;
 use std::path::Path;
 use std::time::Duration;
@@ -10,7 +11,7 @@ pub fn run_create(opts: &create::Opts) -> Result<()> {
     create::run(
         opts,
         &Quiet,
-        &Process,
+        &Gh::new(ProcessRunner),
         Path::new("."),
         &mut std::io::stdin().lock(),
         &mut out,
@@ -25,6 +26,7 @@ pub fn run_merge(opts: &merge::Opts) -> Result<()> {
     merge::run(
         opts,
         &wait,
+        &Gh::new(ProcessRunner),
         &Quiet,
         &Process,
         &sleep,

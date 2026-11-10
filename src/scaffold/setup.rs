@@ -1,7 +1,8 @@
 //! `setup <type> <name>`: mkdir, `git init -b main`, init, commit, and unless
-//! `no_push` a private GitHub repository pushed with `gh`. Every external
-//! command goes through `Exec` so the sequence is testable.
+//! `no_push` a private hosted repository pushed through the platform (`Forge`).
+//! Every external command goes through `Exec` or `Forge` so the sequence is testable.
 use super::{init::init, plan::plan, render::Vars};
+use actautoma::forge::{Forge, NewRepo};
 use anyhow::{Context, Result, bail};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -57,13 +58,13 @@ fn check(s: &Setup) -> Result<PathBuf> {
 }
 
 /// Returns the created directory.
-pub fn setup(s: &Setup, exec: &impl Exec) -> Result<PathBuf> {
+pub fn setup(s: &Setup, exec: &impl Exec, forge: &impl Forge) -> Result<PathBuf> {
     let target = check(s)?;
     let plan = plan(s.templates, s.kind)?;
     // Fail before creating anything when a needed tool is missing.
     exec.run("git", &["--version"], None)?;
     if !s.no_push {
-        exec.run("gh", &["--version"], None)?;
+        forge.available()?;
     }
     fs::create_dir_all(&target).with_context(|| format!("mkdir {}", target.display()))?;
     exec.run("git", &["init", "-q", "-b", "main"], Some(&target))?;
@@ -72,20 +73,14 @@ pub fn setup(s: &Setup, exec: &impl Exec) -> Result<PathBuf> {
     let msg = format!("initial scaffold for {} ({})", s.name, s.kind);
     exec.run("git", &["commit", "-q", "-m", &msg], Some(&target))?;
     if !s.no_push {
-        let dir = target.to_string_lossy();
-        exec.run(
-            "gh",
-            &[
-                "repo",
-                "create",
-                s.name,
-                "--private",
-                "--source",
-                &dir,
-                "--push",
-            ],
-            None,
-        )?;
+        forge
+            .create_repo(&NewRepo {
+                name: s.name.to_string(),
+                source: target.clone(),
+                private: true,
+                push: true,
+            })
+            .context("create the hosted repository")?;
     }
     Ok(target)
 }

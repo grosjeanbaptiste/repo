@@ -1,6 +1,7 @@
 //! Checks, then runs, the rename of a repository's branch (see `plan`).
 use super::plan::{Opts, Step, plan, validate};
 use crate::scaffold::setup::Exec;
+use actautoma::forge::Forge;
 use anyhow::{Result, anyhow, bail};
 use std::fs;
 use std::io::ErrorKind;
@@ -24,33 +25,28 @@ fn git_lines(exec: &dyn Exec, path: &Path, args: &[&str]) -> Result<Vec<String>>
 }
 
 /// `owner/repo` of `origin`, when it has one, after checking its default branch is `from`.
-fn remote_slug(exec: &dyn Exec, path: &Path, from: &str) -> Result<Option<String>> {
+fn remote_slug(
+    exec: &dyn Exec,
+    forge: &dyn Forge,
+    path: &Path,
+    from: &str,
+) -> Result<Option<String>> {
     if !git_lines(exec, path, &["remote"])?
         .iter()
         .any(|r| r == "origin")
     {
         return Ok(None);
     }
-    let query = ".nameWithOwner + \" \" + .defaultBranchRef.name";
-    let args = [
-        "repo",
-        "view",
-        "--json",
-        "nameWithOwner,defaultBranchRef",
-        "-q",
-        query,
-    ];
-    let out = exec
-        .run("gh", &args, Some(path))
-        .map_err(|e| anyhow!("gh repo view failed: {e}"))?;
-    let mut words = out.split_whitespace();
-    let (Some(slug), Some(default), None) = (words.next(), words.next(), words.next()) else {
-        bail!("unexpected answer from gh repo view: {:?}", out.trim());
-    };
-    if default != from {
-        bail!("the default branch on GitHub is {default:?}, not {from:?}: nothing was changed");
+    let repo = forge
+        .view_repo()
+        .map_err(|e| anyhow!("reading the hosted repository failed: {e}"))?;
+    if repo.default_branch != from {
+        let default = &repo.default_branch;
+        bail!(
+            "the default branch on the platform is {default:?}, not {from:?}: nothing was changed"
+        );
     }
-    Ok(Some(slug.to_string()))
+    Ok(Some(repo.slug))
 }
 
 /// Whole-word match, as `git grep -w`: word characters are letters, digits, `_`.
@@ -84,11 +80,19 @@ fn references(exec: &dyn Exec, path: &Path, word: &str) -> Result<Vec<String>> {
     Ok(found)
 }
 
-fn execute(exec: &dyn Exec, path: &Path, steps: &[Step]) -> Result<()> {
+fn execute(exec: &dyn Exec, forge: &dyn Forge, path: &Path, steps: &[Step]) -> Result<()> {
     let mut done: Vec<String> = Vec::new();
     for step in steps {
-        let args: Vec<&str> = step.args.iter().map(String::as_str).collect();
-        exec.run(step.prog, &args, Some(path)).map_err(|e| {
+        let outcome = match step {
+            Step::Git(args) => {
+                let args: Vec<&str> = args.iter().map(String::as_str).collect();
+                exec.run("git", &args, Some(path)).map(drop)
+            }
+            Step::SetDefaultBranch { slug, branch } => forge
+                .set_default_branch(slug, branch)
+                .map_err(anyhow::Error::from),
+        };
+        outcome.map_err(|e| {
             let so_far = if done.is_empty() {
                 "nothing".to_string()
             } else {
@@ -101,7 +105,13 @@ fn execute(exec: &dyn Exec, path: &Path, steps: &[Step]) -> Result<()> {
     Ok(())
 }
 
-pub fn rename(exec: &dyn Exec, path: &Path, o: &Opts, dry_run: bool) -> Result<Outcome> {
+pub fn rename(
+    exec: &dyn Exec,
+    forge: &dyn Forge,
+    path: &Path,
+    o: &Opts,
+    dry_run: bool,
+) -> Result<Outcome> {
     validate(o)?;
     let branches = git_lines(exec, path, &["branch", "--format=%(refname:short)"])?;
     let has = |name: &str| branches.iter().any(|b| b == name);
@@ -124,11 +134,11 @@ pub fn rename(exec: &dyn Exec, path: &Path, o: &Opts, dry_run: bool) -> Result<O
             o.from
         );
     }
-    let slug = remote_slug(exec, path, &o.from)?;
+    let slug = remote_slug(exec, forge, path, &o.from)?;
     let warnings = references(exec, path, &o.from)?;
     let steps = plan(o, slug.as_deref());
     if !dry_run {
-        execute(exec, path, &steps)?;
+        execute(exec, forge, path, &steps)?;
     }
     Ok(Outcome {
         steps,

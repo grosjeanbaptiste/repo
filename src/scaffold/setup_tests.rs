@@ -1,4 +1,5 @@
 use super::*;
+use crate::fakes::FakeForge;
 use std::cell::RefCell;
 
 fn ok<T, E: std::fmt::Display>(r: std::result::Result<T, E>) -> T {
@@ -11,6 +12,7 @@ struct Fake {
     calls: RefCell<Vec<String>>,
     fail: Option<&'static str>,
     config: Vec<(&'static str, &'static str)>,
+    forge: FakeForge,
 }
 
 impl Exec for Fake {
@@ -41,7 +43,7 @@ fn run(fake: &Fake, kind: &str, name: &str, no_push: bool) -> (Result<PathBuf>, 
     let t = templates();
     let parent = ok(tempfile::tempdir());
     let s = Setup { templates: t.path(), parent: parent.path(), kind, name, no_push, year: "2026".into() };
-    (setup(&s, fake), parent)
+    (setup(&s, fake, &fake.forge), parent)
 }
 
 fn fake() -> Fake {
@@ -55,20 +57,19 @@ fn full_sequence_matches_dotfiles_project_setup() {
     let target = ok(r);
     let calls = f.calls.borrow();
     assert_eq!(calls[0], "git --version");
-    assert_eq!(calls[1], "gh --version");
-    assert_eq!(calls[2], "git init -q -b main");
-    assert_eq!(calls[calls.len() - 3], "git add -A");
-    assert_eq!(calls[calls.len() - 2], "git commit -q -m initial scaffold for ifdck (package/rust)");
-    assert_eq!(calls[calls.len() - 1], format!("gh repo create ifdck --private --source {} --push", target.display()));
+    assert_eq!(calls[1], "git init -q -b main");
+    assert_eq!(calls[calls.len() - 2], "git add -A");
+    assert_eq!(calls[calls.len() - 1], "git commit -q -m initial scaffold for ifdck (package/rust)");
+    assert_eq!(f.forge.log(), ["available".to_string(), format!("create_repo ifdck private push {}", target.display())]);
     assert_eq!(target, parent.path().join("ifdck"));
     assert_eq!(ok(fs::read_to_string(target.join("README.md"))), "# ifdck by Ann a@b.c 2026");
 }
 
 #[test]
-fn no_push_never_calls_gh() {
+fn no_push_never_calls_the_platform() {
     let f = fake();
     ok(run(&f, "package/rust", "ifdck", true).0);
-    assert!(!f.calls.borrow().iter().any(|c| c.starts_with("gh repo")));
+    assert!(f.forge.log().is_empty(), "{:?}", f.forge.log());
 }
 
 #[test]
@@ -77,7 +78,7 @@ fn unknown_type_creates_nothing() {
     let (r, parent) = run(&f, "package/cobol", "ifdck", true);
     assert_eq!(r.err().map(|e| e.to_string()).as_deref(), Some("Unknown project type: package/cobol"));
     assert!(!parent.path().join("ifdck").exists());
-    assert!(f.calls.borrow().is_empty());
+    assert!(f.calls.borrow().is_empty() && f.forge.log().is_empty());
 }
 
 #[test]
@@ -93,7 +94,8 @@ fn missing_args_are_refused() {
 fn missing_parent_is_refused() {
     let t = templates();
     let s = Setup { templates: t.path(), parent: Path::new("/nonexistent/p"), kind: "package/rust", name: "x", no_push: true, year: "1".into() };
-    let e = setup(&s, &fake()).err().map(|e| e.to_string());
+    let f = fake();
+    let e = setup(&s, &f, &f.forge).err().map(|e| e.to_string());
     assert_eq!(e.as_deref(), Some("Parent directory does not exist: /nonexistent/p"));
 }
 
@@ -104,26 +106,26 @@ fn existing_target_even_a_dangling_symlink_is_refused() {
     ok(std::os::unix::fs::symlink("/nonexistent", parent.path().join("x")));
     let s = Setup { templates: t.path(), parent: parent.path(), kind: "package/rust", name: "x", no_push: true, year: "1".into() };
     let f = fake();
-    let e = setup(&s, &f).err().map(|e| e.to_string());
+    let e = setup(&s, &f, &f.forge).err().map(|e| e.to_string());
     assert!(e.is_some_and(|m| m.starts_with("Target already exists: ")));
-    assert!(f.calls.borrow().is_empty());
+    assert!(f.calls.borrow().is_empty() && f.forge.log().is_empty());
 }
 
 #[test]
-fn git_failure_aborts_before_gh() {
+fn git_failure_aborts_before_the_platform_creates_anything() {
     for step in ["git init", "git add", "git commit"] {
         let f = Fake { fail: Some(step), ..fake() };
         let (r, _p) = run(&f, "package/rust", "ifdck", false);
         assert!(r.err().is_some_and(|e| e.to_string().contains("failed")), "{step}");
-        assert!(!f.calls.borrow().iter().any(|c| c.starts_with("gh repo")), "{step}");
+        assert!(!f.forge.log().iter().any(|c| c.starts_with("create_repo")), "{step}");
     }
 }
 
 #[test]
-fn gh_failure_surfaces_and_keeps_the_local_scaffold() {
-    let f = Fake { fail: Some("gh repo"), ..fake() };
+fn a_platform_failure_surfaces_and_keeps_the_local_scaffold() {
+    let f = Fake { forge: FakeForge::default().failing("create_repo"), ..fake() };
     let (r, parent) = run(&f, "package/rust", "ifdck", false);
-    assert!(r.err().is_some_and(|e| e.to_string().contains("gh repo create")));
+    assert!(r.err().is_some_and(|e| e.to_string().contains("create the hosted repository")));
     assert!(parent.path().join("ifdck/README.md").exists());
 }
 
@@ -138,8 +140,9 @@ fn user_name_falls_back_to_the_environment_when_git_has_none() {
 
 #[test]
 fn a_missing_tool_is_found_before_anything_is_created() {
-    for (tool, no_push) in [("git --version", true), ("git --version", false), ("gh --version", false)] {
-        let f = Fake { fail: Some(tool), ..fake() };
+    let no_git = || Fake { fail: Some("git --version"), ..fake() };
+    let no_platform = || Fake { forge: FakeForge::default().failing("available"), ..fake() };
+    for (tool, f, no_push) in [("git", no_git(), true), ("git", no_git(), false), ("platform", no_platform(), false)] {
         let (r, parent) = run(&f, "package/rust", "ifdck", no_push);
         assert!(r.is_err(), "{tool}");
         assert!(!parent.path().join("ifdck").exists(), "{tool}");
@@ -147,7 +150,7 @@ fn a_missing_tool_is_found_before_anything_is_created() {
 }
 
 #[test]
-fn gh_is_not_needed_with_no_push() {
-    let f = Fake { fail: Some("gh repo"), ..fake() };
+fn the_platform_is_not_needed_with_no_push() {
+    let f = Fake { forge: FakeForge::default().failing("available"), ..fake() };
     assert!(run(&f, "package/rust", "ifdck", true).0.is_ok());
 }

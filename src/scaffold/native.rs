@@ -1,6 +1,7 @@
 //! The real `Exec` and the `Scaffold` that uses it: no `dotfiles` involved.
 use super::setup::{Exec, Setup, setup};
 use crate::pipeline::Scaffold;
+use actautoma::{gh::Gh, process::ProcessRunner};
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -105,7 +106,7 @@ impl Scaffold for Native {
             no_push,
             year: year_now()?,
         };
-        let target = setup(&s, &Process)?;
+        let target = setup(&s, &Process, &Gh::new(ProcessRunner))?;
         if no_push {
             println!("Local scaffold ready at {}", target.display());
             println!(

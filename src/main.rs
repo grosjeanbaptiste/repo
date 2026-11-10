@@ -1,4 +1,4 @@
-//! repo — name with actname, scaffold/manage with `dotfiles project`, PRs with gh.
+//! repo — name with actname, scaffold/manage with `dotfiles project`, PRs through actautoma.
 mod branch;
 mod delegate;
 #[cfg(test)]

@@ -1,4 +1,6 @@
 use super::*;
+use crate::fakes::FakeForge;
+use actautoma::forge::Mergeable;
 use std::cell::RefCell;
 
 #[test]
@@ -13,7 +15,7 @@ fn no_candidate_is_an_empty_list() {
     assert!(candidates("").is_empty());
 }
 
-/// Scripted git/gh: `answers` maps a command prefix to its output; `fail` makes a prefix fail.
+/// Scripted git, plus the scripted platform the pull request is created on.
 struct Fake {
     calls: RefCell<Vec<String>>,
     branch: &'static str,
@@ -21,17 +23,18 @@ struct Fake {
     stat: &'static str,
     commit: &'static str,
     fail: Option<&'static str>,
+    forge: FakeForge,
 }
 
 impl Fake {
     fn new() -> Self {
-        Self { calls: RefCell::new(vec![]), branch: "feature", remotes: "origin/main\norigin/feature\n", stat: " a | 1 +\n", commit: "Last commit\n\nbody", fail: None }
+        Self { calls: RefCell::new(vec![]), branch: "feature", remotes: "origin/main\norigin/feature\n", stat: " a | 1 +\n", commit: "Last commit\n\nbody", fail: None, forge: FakeForge::pr("x", Mergeable::Mergeable) }
     }
     fn log(&self) -> Vec<String> {
         self.calls.borrow().clone()
     }
     fn created(&self) -> Option<String> {
-        self.log().into_iter().find(|l| l.starts_with("gh pr create"))
+        self.forge.log().into_iter().find(|l| l.starts_with("create"))
     }
 }
 
@@ -47,7 +50,6 @@ impl Exec for Fake {
             ["branch", "-r", ..] => self.remotes.to_string(),
             ["diff", "--stat", ..] => self.stat.to_string(),
             ["log", "-1", ..] => self.commit.to_string(),
-            ["pr", "create", ..] => "https://github.com/o/r/pull/9\n".to_string(),
             _ => String::new(),
         })
     }
@@ -55,7 +57,7 @@ impl Exec for Fake {
 
 fn go(opts: Opts, f: &Fake, input: &str) -> (Result<()>, String) {
     let mut out = Vec::new();
-    let r = run(&opts, f, f, Path::new("."), &mut input.as_bytes(), &mut out);
+    let r = run(&opts, f, &f.forge, Path::new("."), &mut input.as_bytes(), &mut out);
     (r, String::from_utf8_lossy(&out).into_owned())
 }
 
@@ -68,7 +70,7 @@ fn everything_given_by_flags_creates_the_pr_without_asking() {
     let f = Fake::new();
     let (r, out) = go(flags("main", "T", "B"), &f, "");
     assert!(r.is_ok(), "{r:?}");
-    assert_eq!(f.created().as_deref(), Some("gh pr create --base main --head feature --title T --body B"));
+    assert_eq!(f.created().as_deref(), Some("create --base main --head feature --title T --body B"));
     assert!(out.contains("Current branch: feature\n\n"), "{out}");
     assert!(out.contains("\nDiff against main:\n a | 1 +\n"), "{out}");
     assert!(out.contains("\nCreating pull request...\nhttps://github.com/o/r/pull/9\n"), "{out}");
@@ -181,9 +183,9 @@ fn a_failing_diff_is_an_error_not_an_empty_diff() {
 }
 
 #[test]
-fn a_failing_gh_create_fails_loudly() {
+fn a_failing_platform_create_fails_loudly() {
     let mut f = Fake::new();
-    f.fail = Some("gh pr create");
+    f.forge = FakeForge::pr("x", Mergeable::Mergeable).failing("create");
     let (r, _) = go(flags("main", "T", "B"), &f, "");
     assert!(r.is_err());
 }
