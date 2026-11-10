@@ -27,15 +27,20 @@ pub fn sorted(entries: &[Entry]) -> Vec<Entry> {
     v
 }
 
-/// `<state root>/projects.txt`; the root is `DOTFILES_STATE_ROOT`, else `~/machine`.
-pub fn path(env: impl Fn(&str) -> Option<String>) -> Result<PathBuf> {
+/// The machine state root: `DOTFILES_STATE_ROOT`, else `~/machine`.
+pub fn state_root(env: impl Fn(&str) -> Option<String>) -> Result<PathBuf> {
     if let Some(root) = env("DOTFILES_STATE_ROOT").filter(|r| !r.is_empty()) {
-        return Ok(PathBuf::from(root).join("projects.txt"));
+        return Ok(PathBuf::from(root));
     }
     let home = env("HOME")
         .filter(|h| !h.is_empty())
         .context("HOME is not set")?;
-    Ok(PathBuf::from(home).join("machine/projects.txt"))
+    Ok(PathBuf::from(home).join("machine"))
+}
+
+/// `<state root>/projects.txt`.
+pub fn path(env: impl Fn(&str) -> Option<String>) -> Result<PathBuf> {
+    Ok(state_root(env)?.join("projects.txt"))
 }
 
 /// Entries of the registry text, comments and blank lines dropped; a row

@@ -1,4 +1,5 @@
 //! repo — name with actname, scaffold/manage with `dotfiles project`, PRs with gh.
+mod audit;
 mod branch;
 mod delegate;
 #[cfg(test)]
@@ -123,6 +124,11 @@ enum Cmd {
         #[command(subcommand)]
         sub: PrCmd,
     },
+    /// List the env vars and CI secrets a project references, and where each is fulfilled.
+    Audit {
+        #[arg(default_value = ".")]
+        path: String,
+    },
     /// Folders of the current `*.code-workspace`: list, add, remove, status, push.
     Workspace {
         #[command(subcommand)]
@@ -204,6 +210,7 @@ fn main() -> Result<()> {
                 workspace::command::run_add(&name, &source)
             }
         },
+        Cmd::Audit { path } => audit::command::run(Path::new(&path)),
         Cmd::Other(args) => delegate::project(&args),
         Cmd::RenameBranch {
             path,
