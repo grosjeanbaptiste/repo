@@ -11,6 +11,7 @@ mod push;
 mod registry;
 mod root;
 mod scaffold;
+mod workspace;
 
 use actit::github::GhNames;
 use actit::process::KagProcess;
@@ -122,6 +123,11 @@ enum Cmd {
         #[command(subcommand)]
         sub: PrCmd,
     },
+    /// Folders of the current `*.code-workspace`: list, add, remove, status, push.
+    Workspace {
+        #[command(subcommand)]
+        sub: WsCmd,
+    },
     /// Any other command goes to `dotfiles project` (list, status, pr, doctor, …).
     #[command(external_subcommand)]
     Other(Vec<String>),
@@ -149,6 +155,31 @@ enum PrCmd {
     },
 }
 
+#[derive(Subcommand)]
+enum WsCmd {
+    /// Show the folders.
+    List,
+    /// Add a folder: adopt ./<name>, or clone or scaffold it first.
+    Add {
+        name: String,
+        /// `git clone` this URL into ./<name>, then add it.
+        #[arg(long, conflicts_with = "init")]
+        clone: Option<String>,
+        /// Scaffold a new project of this type at ./<name>, then add it.
+        #[arg(long)]
+        init: Option<String>,
+    },
+    /// Remove a folder from the workspace (the directory stays on disk).
+    Remove { name: String },
+    /// Git state of every folder.
+    Status,
+    /// Push every folder that has unpushed commits.
+    Push {
+        #[arg(long, short = 'n')]
+        dry_run: bool,
+    },
+}
+
 fn main() -> Result<()> {
     match Cli::parse().cmd {
         Cmd::Pr { sub } => match sub {
@@ -157,6 +188,20 @@ fn main() -> Result<()> {
             }
             PrCmd::Merge { number, yes } => {
                 pr::command::run_merge(&pr::merge::Opts { number, yes })
+            }
+        },
+        Cmd::Workspace { sub } => match sub {
+            WsCmd::List => workspace::command::run_list(),
+            WsCmd::Status => workspace::command::run_status(),
+            WsCmd::Remove { name } => workspace::command::run_remove(&name),
+            WsCmd::Push { dry_run } => workspace::command::run_push(dry_run),
+            WsCmd::Add { name, clone, init } => {
+                let source = match (clone, init) {
+                    (Some(url), _) => workspace::edit::Source::Clone(url),
+                    (None, Some(kind)) => workspace::edit::Source::Init(kind),
+                    (None, None) => workspace::edit::Source::Adopt,
+                };
+                workspace::command::run_add(&name, &source)
             }
         },
         Cmd::Other(args) => delegate::project(&args),

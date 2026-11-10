@@ -11,6 +11,7 @@ actit = { git = "ssh://git@github.com/grosjeanbaptiste/Actit.git", rev = "9b2af7
 actautoma = { git = "ssh://git@github.com/grosjeanbaptiste/actautoma.git", rev = "3d1e4cdc2af47b06f5dd9a9a13202840f375ff92" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
 
 [lints.rust]
 unsafe_code = "forbid"
