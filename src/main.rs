@@ -5,6 +5,7 @@ mod fakes;
 mod license;
 mod naming;
 mod pipeline;
+mod pr;
 mod push;
 mod registry;
 mod root;
@@ -100,13 +101,48 @@ enum Cmd {
         #[arg(long, short = 'y')]
         yes: bool,
     },
+    /// Pull requests: create one from the current branch, or merge one and update the local branches.
+    Pr {
+        #[command(subcommand)]
+        sub: PrCmd,
+    },
     /// Any other command goes to `dotfiles project` (list, status, pr, doctor, …).
     #[command(external_subcommand)]
     Other(Vec<String>),
 }
 
+#[derive(Subcommand)]
+enum PrCmd {
+    /// Open a PR for the current branch; title and description are asked on stdin when not given.
+    Create {
+        /// Base branch; the only master/main/develop/dev/staging/release candidate is used when omitted.
+        #[arg(long)]
+        base: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        body: Option<String>,
+    },
+    /// Merge a PR (merge commit, branch deleted), then fast-forward the base locally.
+    Merge {
+        /// PR number; the PR of the current branch when omitted.
+        number: Option<u64>,
+        /// Merge without asking.
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
+}
+
 fn main() -> Result<()> {
     match Cli::parse().cmd {
+        Cmd::Pr { sub } => match sub {
+            PrCmd::Create { base, title, body } => {
+                pr::command::run_create(&pr::create::Opts { base, title, body })
+            }
+            PrCmd::Merge { number, yes } => {
+                pr::command::run_merge(&pr::merge::Opts { number, yes })
+            }
+        },
         Cmd::Other(args) => delegate::project(&args),
         Cmd::List => registry::command::run_list(),
         Cmd::Scan { roots } => registry::command::run_scan(&roots),
