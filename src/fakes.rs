@@ -1,10 +1,14 @@
 //! Test doubles for the two seams: GitHub (`RepoNames`) and `dotfiles` (`Scaffold`).
 use crate::pipeline::Scaffold;
+use actautoma::forge::{
+    Error as ForgeError, Forge, Mergeable, NewPullRequest, NewRepo, PullRequest, Repo,
+};
 use actit::contains::Listing;
 use actit::error::Error;
 use actit::ports::RepoNames;
 use anyhow::Result;
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 pub struct Registry {
     taken: Vec<String>,
@@ -96,5 +100,147 @@ impl Scaffold for Recorder {
             anyhow::bail!("dotfiles project setup failed");
         }
         Ok(())
+    }
+}
+
+/// A scripted platform: records every call, answers from a fixed pull request.
+pub struct FakeForge {
+    pub calls: Rc<RefCell<Vec<String>>>,
+    pr: PullRequest,
+    repo: Repo,
+    /// Mergeability answered by the views after the first, in order; `Unknown` when exhausted.
+    polls: RefCell<Vec<Mergeable>>,
+    views: Cell<usize>,
+    /// The operation that fails: `view`, `poll` (any view after the first), `merge`, `create`,
+    /// `view_repo`, `set_default_branch`, `create_repo`, `available`.
+    fail: Option<&'static str>,
+}
+
+impl FakeForge {
+    pub fn pr(title: &str, mergeable: Mergeable) -> Self {
+        let pr = PullRequest {
+            number: 8,
+            title: title.into(),
+            head: "feature".into(),
+            base: "main".into(),
+            author: "ana".into(),
+            mergeable,
+            review: "APPROVED".into(),
+            merge_state: "CLEAN".into(),
+        };
+        let repo = Repo {
+            slug: "me/ss".into(),
+            default_branch: "master".into(),
+        };
+        Self {
+            calls: Rc::default(),
+            pr,
+            repo,
+            polls: RefCell::default(),
+            views: Cell::new(0),
+            fail: None,
+        }
+    }
+
+    /// The hosted repository `view_repo` answers with.
+    pub fn hosting(mut self, slug: &str, default_branch: &str) -> Self {
+        self.repo = Repo {
+            slug: slug.into(),
+            default_branch: default_branch.into(),
+        };
+        self
+    }
+
+    /// Records into `log` too, to see the order against another fake's calls.
+    pub fn logging_to(mut self, log: Rc<RefCell<Vec<String>>>) -> Self {
+        self.calls = log;
+        self
+    }
+
+    pub fn polling(self, later: &[Mergeable]) -> Self {
+        *self.polls.borrow_mut() = later.iter().rev().cloned().collect();
+        self
+    }
+
+    pub fn failing(mut self, operation: &'static str) -> Self {
+        self.fail = Some(operation);
+        self
+    }
+
+    pub fn log(&self) -> Vec<String> {
+        self.calls.borrow().clone()
+    }
+
+    fn check(&self, operation: &str) -> Result<(), ForgeError> {
+        match self.fail {
+            Some(f) if f == operation => Err(ForgeError::Run(format!("{operation} failed"))),
+            _ => Ok(()),
+        }
+    }
+}
+
+impl Forge for FakeForge {
+    fn view_pr(&self, number: Option<u64>) -> Result<PullRequest, ForgeError> {
+        self.calls.borrow_mut().push(match number {
+            Some(n) => format!("view {n}"),
+            None => "view".into(),
+        });
+        let first = self.views.get() == 0;
+        self.views.set(self.views.get() + 1);
+        self.check(if first { "view" } else { "poll" })?;
+        let mut pr = self.pr.clone();
+        if !first {
+            pr.mergeable = self.polls.borrow_mut().pop().unwrap_or(Mergeable::Unknown);
+        }
+        Ok(pr)
+    }
+
+    fn create_pr(&self, pr: &NewPullRequest) -> Result<String, ForgeError> {
+        self.calls.borrow_mut().push(format!(
+            "create --base {} --head {} --title {} --body {}",
+            pr.base, pr.head, pr.title, pr.body
+        ));
+        self.check("create")?;
+        Ok("https://github.com/o/r/pull/9".into())
+    }
+
+    fn merge_pr(&self, number: u64) -> Result<(), ForgeError> {
+        self.calls.borrow_mut().push(format!("merge {number}"));
+        self.check("merge")
+    }
+
+    fn view_repo(&self) -> Result<Repo, ForgeError> {
+        self.calls.borrow_mut().push("view_repo".into());
+        self.check("view_repo")?;
+        Ok(self.repo.clone())
+    }
+
+    fn set_default_branch(&self, slug: &str, branch: &str) -> Result<(), ForgeError> {
+        let line = format!("set_default_branch {slug} {branch}");
+        self.calls.borrow_mut().push(line);
+        self.check("set_default_branch")
+    }
+
+    fn create_repo(&self, repo: &NewRepo) -> Result<(), ForgeError> {
+        let vis = if repo.private { "private" } else { "public" };
+        let push = if repo.push { " push" } else { "" };
+        let line = format!(
+            "create_repo {} {vis}{push} {}",
+            repo.name,
+            repo.source.display()
+        );
+        self.calls.borrow_mut().push(line);
+        self.check("create_repo")
+    }
+
+    fn available(&self) -> Result<(), ForgeError> {
+        self.calls.borrow_mut().push("available".into());
+        self.check("available")
+    }
+}
+
+impl Default for FakeForge {
+    fn default() -> Self {
+        Self::pr("default", Mergeable::Mergeable)
     }
 }

@@ -9,22 +9,26 @@ pub struct Opts {
     pub delete_old: bool,
 }
 
+/// One step of the rename: a `git` command, or an operation on the hosting platform.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Step {
-    pub prog: &'static str,
-    pub args: Vec<String>,
+pub enum Step {
+    Git(Vec<String>),
+    SetDefaultBranch { slug: String, branch: String },
 }
 
 impl Step {
-    fn new(prog: &'static str, args: &[&str]) -> Self {
-        Self {
-            prog,
-            args: args.iter().map(|a| a.to_string()).collect(),
-        }
+    fn git(args: &[&str]) -> Self {
+        Step::Git(args.iter().map(|a| a.to_string()).collect())
     }
 
+    /// What the step does, as printed by `--dry-run` and in errors.
     pub fn line(&self) -> String {
-        format!("{} {}", self.prog, self.args.join(" "))
+        match self {
+            Step::Git(args) => format!("git {}", args.join(" ")),
+            Step::SetDefaultBranch { slug, branch } => {
+                format!("set default branch of {slug} to {branch}")
+            }
+        }
     }
 }
 
@@ -33,17 +37,17 @@ impl Step {
 /// The default is switched before the old branch goes: GitHub refuses to
 /// delete the default branch.
 pub fn plan(o: &Opts, slug: Option<&str>) -> Vec<Step> {
-    let mut steps = vec![Step::new("git", &["branch", "-m", &o.from, &o.to])];
+    let mut steps = vec![Step::git(&["branch", "-m", &o.from, &o.to])];
     let Some(slug) = slug else { return steps };
-    steps.push(Step::new("git", &["push", "-u", "origin", &o.to]));
-    steps.push(Step::new(
-        "gh",
-        &["repo", "edit", slug, "--default-branch", &o.to],
-    ));
+    steps.push(Step::git(&["push", "-u", "origin", &o.to]));
+    steps.push(Step::SetDefaultBranch {
+        slug: slug.to_string(),
+        branch: o.to.clone(),
+    });
     if o.delete_old {
-        steps.push(Step::new("git", &["push", "origin", "--delete", &o.from]));
+        steps.push(Step::git(&["push", "origin", "--delete", &o.from]));
     }
-    steps.push(Step::new("git", &["remote", "set-head", "origin", "-a"]));
+    steps.push(Step::git(&["remote", "set-head", "origin", "-a"]));
     steps
 }
 

@@ -33,9 +33,7 @@ fn commit(dir: &Path, file: &str) {
 const GH: &str = r#"#!/bin/sh
 echo "$*" >> "$GH_LOG"
 case "$*" in
-  *"--jq"*) printf '8\037Add x\037feature\037main\037ana\037%s\037APPROVED\n' "${GH_MERGEABLE:-MERGEABLE}" ;;
-  *"{{.mergeable}}"*) printf '%s' "${GH_MERGEABLE:-MERGEABLE}" ;;
-  *"{{.mergeStateStatus}}"*) printf 'CLEAN' ;;
+  *"--jq"*) printf '8\037Add x\037feature\037main\037ana\037%s\037APPROVED\037CLEAN\n' "${GH_MERGEABLE:-MERGEABLE}" ;;
   "pr merge"*) git -C "$GH_HELPER" merge -q --no-ff -m "merge feature" origin/feature && git -C "$GH_HELPER" push -q origin main ;;
   "pr create"*) echo https://github.com/o/r/pull/9 ;;
 esac

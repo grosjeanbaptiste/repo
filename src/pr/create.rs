@@ -1,6 +1,7 @@
 //! `repo pr create [--base B] [--title T] [--body D]` (port of dotfiles `project pr create`,
 //! with flags in place of the fzf base picker; title and description are asked when not given).
 use crate::scaffold::setup::Exec;
+use actautoma::forge::{Forge, NewPullRequest};
 use anyhow::{Result, bail};
 use std::collections::BTreeSet;
 use std::io::{BufRead, Write};
@@ -93,7 +94,7 @@ fn body(opts: &Opts, input: &mut impl BufRead, out: &mut impl Write) -> Result<S
 pub fn run(
     opts: &Opts,
     probe: &impl Exec,
-    act: &impl Exec,
+    forge: &impl Forge,
     dir: &Path,
     input: &mut impl BufRead,
     out: &mut impl Write,
@@ -118,10 +119,13 @@ pub fn run(
     }
     write!(out, "{stat}")?;
     writeln!(out, "\nCreating pull request...")?;
-    let args = [
-        "pr", "create", "--base", &base, "--head", head, "--title", &title, "--body", &body,
-    ];
-    write!(out, "{}", act.run("gh", &args, Some(dir))?)?;
+    let url = forge.create_pr(&NewPullRequest {
+        base,
+        head: head.to_string(),
+        title,
+        body,
+    })?;
+    writeln!(out, "{url}")?;
     Ok(())
 }
 

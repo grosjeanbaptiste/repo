@@ -22,7 +22,7 @@ fn a_remote_plan_pushes_switches_the_default_and_refreshes_origin_head() {
         [
             "git branch -m master main",
             "git push -u origin main",
-            "gh repo edit me/ss --default-branch main",
+            "set default branch of me/ss to main",
             "git remote set-head origin -a",
         ]
     );
@@ -36,7 +36,7 @@ fn deleting_the_old_remote_branch_comes_after_the_default_switch() {
         [
             "git branch -m master main",
             "git push -u origin main",
-            "gh repo edit me/ss --default-branch main",
+            "set default branch of me/ss to main",
             "git push origin --delete master",
             "git remote set-head origin -a",
         ]
