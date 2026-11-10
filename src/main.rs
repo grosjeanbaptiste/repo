@@ -1,4 +1,5 @@
 //! repo — name with actname, scaffold/manage with `dotfiles project`, PRs with gh.
+mod branch;
 mod delegate;
 #[cfg(test)]
 mod fakes;
@@ -81,6 +82,21 @@ enum Cmd {
         #[arg(default_value = ".")]
         path: String,
     },
+    /// Rename a repository's default branch, locally and on GitHub (master -> main).
+    RenameBranch {
+        #[arg(default_value = ".")]
+        path: String,
+        #[arg(long, default_value = "master")]
+        from: String,
+        #[arg(long, default_value = "main")]
+        to: String,
+        /// Print the steps; change nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Also delete the old branch on origin (irreversible).
+        #[arg(long)]
+        delete_old: bool,
+    },
     /// List the registered projects (name and path).
     List,
     /// Find git repositories (default root: $HOME) and refresh the registry.
@@ -95,6 +111,13 @@ enum Cmd {
 fn main() -> Result<()> {
     match Cli::parse().cmd {
         Cmd::Other(args) => delegate::project(&args),
+        Cmd::RenameBranch {
+            path,
+            from,
+            to,
+            dry_run,
+            delete_old,
+        } => branch::command::run(&path, &from, &to, dry_run, delete_old),
         Cmd::List => registry::command::run_list(),
         Cmd::Scan { roots } => registry::command::run_scan(&roots),
         Cmd::Status { name } => registry::command::run_status(name.as_deref()),
