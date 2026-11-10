@@ -107,3 +107,14 @@ fn results_are_sorted_and_unique() {
     sorted.dedup();
     assert_eq!(v, sorted);
 }
+
+#[test]
+fn discover_all_enters_the_directories_discover_prunes() {
+    let d = ok(tempfile::tempdir());
+    mkrepo(d.path(), "keep");
+    mkrepo(d.path(), "node_modules/dep");
+    mkrepo(d.path(), "vendor/lib");
+    let all: Vec<_> = discover_all(d.path()).repos.iter().map(|p| p.strip_prefix(d.path()).map_or_else(|_| String::new(), |r| r.display().to_string())).collect();
+    assert_eq!(all, ["keep", "node_modules/dep", "vendor/lib"]);
+    assert_eq!(names(d.path()), ["keep"]);
+}

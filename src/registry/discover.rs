@@ -46,6 +46,15 @@ pub const PRUNED: [&str; 30] = [
 ];
 
 pub fn discover(root: &Path) -> Found {
+    discover_pruning(root, &PRUNED)
+}
+
+/// Every repository under `root`, vendored directories included (`project push`).
+pub fn discover_all(root: &Path) -> Found {
+    discover_pruning(root, &[])
+}
+
+fn discover_pruning(root: &Path, pruned: &[&str]) -> Found {
     let mut found = Found::default();
     if !root.is_dir() {
         return found;
@@ -68,7 +77,7 @@ pub fn discover(root: &Path) -> Found {
             let name = entry.file_name();
             if name == ".git" {
                 found.repos.push(dir.clone());
-            } else if !PRUNED.iter().any(|p| name == *p) {
+            } else if !pruned.iter().any(|p| name == *p) {
                 stack.push(path);
             }
         }
