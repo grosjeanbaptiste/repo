@@ -1,5 +1,6 @@
 //! Test doubles for the two seams: GitHub (`RepoNames`) and `dotfiles` (`Scaffold`).
 use crate::pipeline::Scaffold;
+use actautoma::forge::{Error as ForgeError, Forge, Mergeable, NewPullRequest, PullRequest};
 use actit::contains::Listing;
 use actit::error::Error;
 use actit::ports::RepoNames;
@@ -96,5 +97,90 @@ impl Scaffold for Recorder {
             anyhow::bail!("dotfiles project setup failed");
         }
         Ok(())
+    }
+}
+
+/// A scripted platform: records every call, answers from a fixed pull request.
+pub struct FakeForge {
+    pub calls: RefCell<Vec<String>>,
+    pr: PullRequest,
+    /// Mergeability answered by the views after the first, in order; `Unknown` when exhausted.
+    polls: RefCell<Vec<Mergeable>>,
+    views: Cell<usize>,
+    /// The operation that fails: `view`, `poll` (any view after the first), `merge`, `create`.
+    fail: Option<&'static str>,
+}
+
+impl FakeForge {
+    pub fn pr(title: &str, mergeable: Mergeable) -> Self {
+        let pr = PullRequest {
+            number: 8,
+            title: title.into(),
+            head: "feature".into(),
+            base: "main".into(),
+            author: "ana".into(),
+            mergeable,
+            review: "APPROVED".into(),
+            merge_state: "CLEAN".into(),
+        };
+        Self {
+            calls: RefCell::default(),
+            pr,
+            polls: RefCell::default(),
+            views: Cell::new(0),
+            fail: None,
+        }
+    }
+
+    pub fn polling(self, later: &[Mergeable]) -> Self {
+        *self.polls.borrow_mut() = later.iter().rev().cloned().collect();
+        self
+    }
+
+    pub fn failing(mut self, operation: &'static str) -> Self {
+        self.fail = Some(operation);
+        self
+    }
+
+    pub fn log(&self) -> Vec<String> {
+        self.calls.borrow().clone()
+    }
+
+    fn check(&self, operation: &str) -> Result<(), ForgeError> {
+        match self.fail {
+            Some(f) if f == operation => Err(ForgeError::Run(format!("{operation} failed"))),
+            _ => Ok(()),
+        }
+    }
+}
+
+impl Forge for FakeForge {
+    fn view_pr(&self, number: Option<u64>) -> Result<PullRequest, ForgeError> {
+        self.calls.borrow_mut().push(match number {
+            Some(n) => format!("view {n}"),
+            None => "view".into(),
+        });
+        let first = self.views.get() == 0;
+        self.views.set(self.views.get() + 1);
+        self.check(if first { "view" } else { "poll" })?;
+        let mut pr = self.pr.clone();
+        if !first {
+            pr.mergeable = self.polls.borrow_mut().pop().unwrap_or(Mergeable::Unknown);
+        }
+        Ok(pr)
+    }
+
+    fn create_pr(&self, pr: &NewPullRequest) -> Result<String, ForgeError> {
+        self.calls.borrow_mut().push(format!(
+            "create --base {} --head {} --title {} --body {}",
+            pr.base, pr.head, pr.title, pr.body
+        ));
+        self.check("create")?;
+        Ok("https://github.com/o/r/pull/9".into())
+    }
+
+    fn merge_pr(&self, number: u64) -> Result<(), ForgeError> {
+        self.calls.borrow_mut().push(format!("merge {number}"));
+        self.check("merge")
     }
 }

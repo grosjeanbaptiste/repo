@@ -3,6 +3,11 @@
 version = 4
 
 [[package]]
+name = "actautoma"
+version = "0.1.0"
+source = "git+ssh://git@github.com/grosjeanbaptiste/actautoma.git?rev=08f3d9b0f8385145df3540a8d7b99ae98a6ae5ec#08f3d9b0f8385145df3540a8d7b99ae98a6ae5ec"
+
+[[package]]
 name = "actit"
 version = "0.1.0"
 source = "git+ssh://git@github.com/grosjeanbaptiste/Actit.git?rev=9b2af7784546480604ff804a13906e61415be460#9b2af7784546480604ff804a13906e61415be460"
@@ -453,6 +458,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 name = "repo"
 version = "0.1.0"
 dependencies = [
+ "actautoma",
  "actit",
  "actname",
  "anyhow",
