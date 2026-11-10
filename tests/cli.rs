@@ -38,8 +38,14 @@ fn new_needs_a_name_or_a_prefix_and_domain() {
 }
 
 #[test]
-fn new_needs_a_project_type() {
-    assert_eq!(repo(&["new", "--name", "ifdck"]).status.code(), Some(2));
+fn new_without_a_type_asks_on_stdin_and_fails_on_an_empty_answer() {
+    let out = repo(&["new", "--name", "ifdck"]); // stdin is empty
+    assert_eq!(out.status.code(), Some(1));
+    assert!(
+        stderr(&out).contains("new needs a project type"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
