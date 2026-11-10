@@ -4,7 +4,7 @@ Manage git repositories by reusing what exists:
 
 - **actname** (Rust library, pinned by commit) names the repository.
 - **`repo` itself** scaffolds it (`src/scaffold/`: mkdir, git init, templates from `~/dotfiles/project-templates`, commit, private GitHub repo via `gh`); `--via-dotfiles` uses the old `dotfiles project setup` instead.
-- **`dotfiles project`** still handles `doctor`, `audit`, `install`, `release`, `deploy`; they move into `repo` one by one (see `CONTEXT.md`).
+- **`dotfiles project`** still handles `doctor`, `install`, `release`, `deploy`; they move into `repo` one by one (see `CONTEXT.md`).
 - **Prerequisites:** `git` and `gh` on `PATH`; templates are read from `~/dotfiles/project-templates` (`PROJECT_REPO_ROOT` / `DOTFILES_REPO_ROOT` override the root).
 - **actit** (Rust library, pinned by commit) checks that the name is free on GitHub, under any owner, through `gh`.
 
@@ -40,7 +40,8 @@ repo pr merge [N] [--yes]                           # merge commit, branch delet
 repo workspace list | status | push [-n]            # folders of the nearest *.code-workspace ($DOTFILES_WORKSPACE_FILE overrides)
 repo workspace add NAME [--clone URL | --init TYPE] # adopt ./NAME, or clone / scaffold it first
 repo workspace remove NAME                          # forget the folder; the directory stays
-repo doctor | audit | …                             # forwarded to `dotfiles project`
+repo audit [PATH]                                  # env vars / CI secrets a project references, and where each is fulfilled
+repo doctor | …                                     # forwarded to `dotfiles project`
 ```
 
 Names whose directory exists, or that any GitHub owner already uses, are skipped.
