@@ -2,9 +2,11 @@
 mod delegate;
 #[cfg(test)]
 mod fakes;
+mod license;
 mod naming;
 mod pipeline;
 mod root;
+mod scaffold;
 
 use actit::github::GhNames;
 use actit::process::KagProcess;
@@ -12,6 +14,11 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use naming::Query;
 use pipeline::{Dotfiles, NewOpts, Source};
+use scaffold::apply::Mode;
+use scaffold::command;
+use scaffold::native::Native;
+use scaffold::{plan, prompt};
+use std::path::Path;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -24,8 +31,8 @@ struct Cli {
 enum Cmd {
     /// Name a new repository (actname, or --name), check it, then scaffold it.
     New {
-        /// Project type, as in `dotfiles project setup` (e.g. package/rust).
-        kind: String,
+        /// Project type, as in `dotfiles project setup` (e.g. package/rust); asked on stdin when omitted.
+        kind: Option<String>,
         /// Use this exact name instead of asking actname; it must be free.
         #[arg(long, conflicts_with_all = ["prefixes", "domain"])]
         name: Option<String>,
@@ -44,6 +51,34 @@ enum Cmd {
         /// Print the chosen name and stop.
         #[arg(long)]
         dry_run: bool,
+        /// Scaffold with `dotfiles project setup` instead of the built-in Rust code.
+        #[arg(long)]
+        via_dotfiles: bool,
+    },
+    /// Audit a project against the standard templates.
+    Check {
+        #[arg(default_value = ".")]
+        path: String,
+        #[arg(long = "type")]
+        kind: Option<String>,
+    },
+    /// Drop/refresh the standard files in an existing project (skips existing files).
+    Apply {
+        #[arg(default_value = ".")]
+        path: String,
+        #[arg(long = "type")]
+        kind: Option<String>,
+        /// Overwrite files that exist.
+        #[arg(long, conflicts_with = "diff")]
+        force: bool,
+        /// Show what would change; write nothing.
+        #[arg(long)]
+        diff: bool,
+    },
+    /// Say which licence a project carries (none, proprietary, open, other).
+    License {
+        #[arg(default_value = ".")]
+        path: String,
     },
     /// Any other command goes to `dotfiles project` (list, status, pr, doctor, …).
     #[command(external_subcommand)]
@@ -53,6 +88,26 @@ enum Cmd {
 fn main() -> Result<()> {
     match Cli::parse().cmd {
         Cmd::Other(args) => delegate::project(&args),
+        Cmd::License { path } => {
+            println!("{}", license::doctor_line(Path::new(&path))?);
+            Ok(())
+        }
+        Cmd::Check { path, kind } => command::run(Path::new(&path), kind.as_deref(), Mode::Check),
+        Cmd::Apply {
+            path,
+            kind,
+            force,
+            diff,
+        } => {
+            let mode = if force {
+                Mode::Force
+            } else if diff {
+                Mode::Diff
+            } else {
+                Mode::Apply
+            };
+            command::run(Path::new(&path), kind.as_deref(), mode)
+        }
         Cmd::New {
             kind,
             name,
@@ -63,7 +118,17 @@ fn main() -> Result<()> {
             root,
             no_push,
             dry_run,
+            via_dotfiles,
         } => {
+            let native = Native::from_env()?;
+            let kind = match kind {
+                Some(kind) => kind,
+                None => prompt::ask(
+                    &plan::known_types(&native.templates)?,
+                    &mut std::io::stdin().lock(),
+                    &mut std::io::stderr(),
+                )?,
+            };
             let source = match name {
                 Some(name) => Source::Named(name),
                 None => Source::Generated(Query {
@@ -81,7 +146,11 @@ fn main() -> Result<()> {
                 dry_run,
             };
             let names = GhNames::new(KagProcess::new("gh"));
-            let name = pipeline::run(&opts, &names, &Dotfiles)?;
+            let name = if via_dotfiles {
+                pipeline::run(&opts, &names, &Dotfiles)?
+            } else {
+                pipeline::run(&opts, &names, &native)?
+            };
             if dry_run {
                 println!("{name}");
             }

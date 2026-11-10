@@ -20,16 +20,17 @@ pub struct NewOpts {
     pub dry_run: bool,
 }
 
-/// Runs `dotfiles project setup`.
+/// Creates the directory, scaffolds it, commits, and pushes unless `no_push`.
 pub trait Scaffold {
-    fn setup(&self, args: &[String]) -> Result<()>;
+    fn setup(&self, kind: &str, name: &str, root: &Path, no_push: bool) -> Result<()>;
 }
 
+/// Legacy path: `dotfiles project setup`.
 pub struct Dotfiles;
 
 impl Scaffold for Dotfiles {
-    fn setup(&self, args: &[String]) -> Result<()> {
-        crate::delegate::project(args)
+    fn setup(&self, kind: &str, name: &str, root: &Path, no_push: bool) -> Result<()> {
+        crate::delegate::project(&crate::delegate::setup_args(kind, name, root, no_push))
     }
 }
 
@@ -49,8 +50,7 @@ fn choose(source: &Source, root: &Path, names: &impl RepoNames) -> Result<String
 pub fn run(opts: &NewOpts, names: &impl RepoNames, scaffold: &impl Scaffold) -> Result<String> {
     let name = choose(&opts.source, &opts.root, names)?;
     if !opts.dry_run {
-        let args = crate::delegate::setup_args(&opts.kind, &name, &opts.root, opts.no_push);
-        scaffold.setup(&args)?;
+        scaffold.setup(&opts.kind, &name, &opts.root, opts.no_push)?;
     }
     Ok(name)
 }

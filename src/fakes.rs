@@ -89,8 +89,9 @@ pub struct Recorder {
 }
 
 impl Scaffold for Recorder {
-    fn setup(&self, args: &[String]) -> Result<()> {
-        self.calls.borrow_mut().push(args.to_vec());
+    fn setup(&self, kind: &str, name: &str, root: &std::path::Path, no_push: bool) -> Result<()> {
+        let args = crate::delegate::setup_args(kind, name, root, no_push);
+        self.calls.borrow_mut().push(args);
         if self.fail {
             anyhow::bail!("dotfiles project setup failed");
         }

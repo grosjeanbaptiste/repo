@@ -178,7 +178,7 @@ fn missing_gh_fails_loudly_and_creates_nothing() {
 
 #[test]
 #[ignore = "needs gh and network"]
-fn missing_dotfiles_fails_loudly_and_creates_nothing() {
+fn missing_git_fails_loudly_and_creates_nothing() {
     let (root, bin) = (tmp(), tmp());
     let gh = Command::new("which")
         .arg("gh")
@@ -191,6 +191,29 @@ fn missing_dotfiles_fails_loudly_and_creates_nothing() {
     );
     let out = run_with(
         &["new", "package/rust", "--name", "ifdck"],
+        root.path(),
+        bin.path().to_str(),
+    );
+    assert!(!out.status.success());
+    assert!(log(&out).contains("git"), "{}", log(&out));
+    assert!(is_empty(root.path()));
+}
+
+#[test]
+#[ignore = "needs gh and network"]
+fn missing_dotfiles_fails_loudly_with_via_dotfiles() {
+    let (root, bin) = (tmp(), tmp());
+    let gh = Command::new("which")
+        .arg("gh")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+    assert!(
+        std::os::unix::fs::symlink(&gh, bin.path().join("gh")).is_ok(),
+        "gh not found"
+    );
+    let out = run_with(
+        &["new", "package/rust", "--name", "ifdck", "--via-dotfiles"],
         root.path(),
         bin.path().to_str(),
     );
@@ -343,4 +366,26 @@ fn a_dotfiles_project_command_that_succeeds_is_forwarded_with_its_output() {
         .output()
         .unwrap_or_else(|e| panic!("{e}"));
     assert!(out.status.success(), "{}", log(&out));
+}
+
+#[test]
+#[ignore = "needs gh and network"]
+fn the_project_type_can_be_piped_on_stdin() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let root = tmp();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_repo"))
+        .args(["new", "--name", "ifdck", "--no-push", "--root"])
+        .arg(root.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|e| panic!("cannot run repo: {e}"));
+    let mut stdin = child.stdin.take().unwrap_or_else(|| panic!("no stdin"));
+    assert!(stdin.write_all(b"package/rust\n").is_ok());
+    drop(stdin);
+    let out = child.wait_with_output().unwrap_or_else(|e| panic!("{e}"));
+    assert!(out.status.success(), "{}", log(&out));
+    assert!(root.path().join("ifdck/.git").is_dir());
 }
