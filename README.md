@@ -33,6 +33,7 @@ repo check [path] [--type t]                    # audit a project against the te
 repo apply [path] [--type t] [--force|--diff]   # drop/refresh the standard files
 repo license [path]                             # none | proprietary | open | other
 repo list | scan [ROOT...] | status [NAME]      # machine-wide project registry ($DOTFILES_STATE_ROOT/projects.txt)
+repo rename-branch [PATH] [--from master] [--to main] [--dry-run] [--delete-old]   # default branch, local + GitHub
 repo push [--dir PATH] [--dry-run] [--yes]      # push every nested repo that is clean and ahead; asks first
 repo status | list | pr create | doctor         # forwarded to `dotfiles project`
 ```
