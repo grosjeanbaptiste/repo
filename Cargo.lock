@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "actautoma"
 version = "0.1.0"
-source = "git+ssh://git@github.com/grosjeanbaptiste/actautoma.git?rev=08f3d9b0f8385145df3540a8d7b99ae98a6ae5ec#08f3d9b0f8385145df3540a8d7b99ae98a6ae5ec"
+source = "git+ssh://git@github.com/grosjeanbaptiste/actautoma.git?rev=3d1e4cdc2af47b06f5dd9a9a13202840f375ff92#3d1e4cdc2af47b06f5dd9a9a13202840f375ff92"
 
 [[package]]
 name = "actit"

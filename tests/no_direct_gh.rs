@@ -1,13 +1,6 @@
 //! Rule: `repo` never runs `gh` itself. Forge operations go through actit or actautoma.
-//!
-//! Ratchet: the files in `DEBT` still call `gh` and are being migrated to actautoma.
-//! Any other file that does fails the test; a file in `DEBT` that no longer does fails
-//! it too, so the list shrinks and never grows.
 use std::fs;
 use std::path::Path;
-
-/// Paths under `src/` that still spawn `gh` directly.
-const DEBT: [&str; 3] = ["branch/plan.rs", "branch/rename.rs", "scaffold/setup.rs"];
 
 fn sources(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
     for entry in fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())) {
@@ -29,7 +22,7 @@ fn spawns_gh(text: &str) -> bool {
 }
 
 #[test]
-fn only_the_known_debt_spawns_gh_directly() {
+fn no_source_file_spawns_gh_directly() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut files = vec![];
     sources(&root, &mut files);
@@ -37,16 +30,15 @@ fn only_the_known_debt_spawns_gh_directly() {
         !files.is_empty(),
         "found no source file: the guard checks nothing"
     );
-    let mut offenders: Vec<String> = files
+    let offenders: Vec<String> = files
         .iter()
         .filter(|f| {
             spawns_gh(&fs::read_to_string(f).unwrap_or_else(|e| panic!("{}: {e}", f.display())))
         })
         .map(|f| f.strip_prefix(&root).unwrap_or(f).display().to_string())
         .collect();
-    offenders.sort();
-    assert_eq!(
-        offenders, DEBT,
-        "repo must not call gh directly: route it through actautoma, and drop fixed files from DEBT"
+    assert!(
+        offenders.is_empty(),
+        "repo must not call gh directly, route it through actautoma: {offenders:?}"
     );
 }

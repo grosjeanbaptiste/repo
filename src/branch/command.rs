@@ -1,7 +1,8 @@
-//! `repo rename-branch`: wired to the real `git` and `gh`.
+//! `repo rename-branch`: wired to the real `git` and, through actautoma, the hosting platform.
 use super::plan::Opts;
 use super::rename::rename;
 use crate::scaffold::native::Process;
+use actautoma::{gh::Gh, process::ProcessRunner};
 use anyhow::Result;
 use std::path::Path;
 
@@ -14,7 +15,8 @@ pub fn run(path: &str, from: &str, to: &str, dry_run: bool, delete_old: bool) ->
         to: to.into(),
         delete_old,
     };
-    let out = rename(&Process, Path::new(path), &opts, dry_run)?;
+    let forge = Gh::new(ProcessRunner).in_dir(path);
+    let out = rename(&Process, &forge, Path::new(path), &opts, dry_run)?;
     if out.already {
         println!("{to} already exists and {from} does not: nothing to do");
         return Ok(());
