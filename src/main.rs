@@ -2,6 +2,7 @@
 mod audit;
 mod branch;
 mod delegate;
+mod deploy;
 mod doctor;
 #[cfg(test)]
 mod fakes;
@@ -157,6 +158,28 @@ enum Cmd {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// Build and publish a project to an environment and store: web, ios, android, mas, homebrew, windows, linux, all.
+    Deploy {
+        /// prod | test
+        env: String,
+        /// web | ios | android | mas | homebrew | windows | linux | all
+        target: String,
+        /// Project directory.
+        #[arg(default_value = ".")]
+        path: String,
+        /// Cloudflare Pages project name for web (default: the directory name).
+        #[arg(long)]
+        project: Option<String>,
+        /// Do not ask for confirmation.
+        #[arg(short, long)]
+        yes: bool,
+        /// Print what would run without doing it.
+        #[arg(long)]
+        dry_run: bool,
+        /// ios/android only: push the store page from <path>/stores, no build, no binary, no review.
+        #[arg(long)]
+        store_page: bool,
+    },
     /// Run a verb of a project (Makefile target, melos script, cargo/flutter command); without a verb, list them.
     Run {
         /// Directory or registered project name.
@@ -259,6 +282,23 @@ fn main() -> Result<()> {
             force,
         }),
         Cmd::Release { args } => release::command::command(&args),
+        Cmd::Deploy {
+            env,
+            target,
+            path,
+            project,
+            yes,
+            dry_run,
+            store_page,
+        } => deploy::command::command_line(deploy::command::Args {
+            env,
+            target,
+            path,
+            project,
+            yes,
+            dry_run,
+            store_page,
+        }),
         Cmd::Run { name, rest } => match run::command::command(&name, &rest)? {
             0 => Ok(()),
             code => std::process::exit(code), // the project's own failure: its code, its diagnostics
