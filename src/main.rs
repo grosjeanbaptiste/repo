@@ -14,6 +14,7 @@ mod push;
 mod registry;
 mod release;
 mod root;
+mod run;
 mod scaffold;
 mod workspace;
 
@@ -156,6 +157,14 @@ enum Cmd {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// Run a verb of a project (Makefile target, melos script, cargo/flutter command); without a verb, list them.
+    Run {
+        /// Directory or registered project name.
+        name: String,
+        /// The verb, then its arguments verbatim (a `--` among them is kept).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        rest: Vec<String>,
+    },
     /// Folders of the current `*.code-workspace`: list, add, remove, status, push.
     Workspace {
         #[command(subcommand)]
@@ -250,6 +259,10 @@ fn main() -> Result<()> {
             force,
         }),
         Cmd::Release { args } => release::command::command(&args),
+        Cmd::Run { name, rest } => match run::command::command(&name, &rest)? {
+            0 => Ok(()),
+            code => std::process::exit(code), // the project's own failure: its code, its diagnostics
+        },
         Cmd::Doctor { path } => doctor::command::command(Path::new(&path)),
         Cmd::Other(args) => delegate::project(&args),
         Cmd::RenameBranch {

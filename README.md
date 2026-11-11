@@ -4,7 +4,7 @@ Manage git repositories by reusing what exists:
 
 - **actname** (Rust library, pinned by commit) names the repository.
 - **`repo` itself** scaffolds it (`src/scaffold/`: mkdir, git init, templates from `~/dotfiles/project-templates`, commit, private GitHub repo via `gh`); `--via-dotfiles` uses the old `dotfiles project setup` instead.
-- **`dotfiles project`** still handles `doctor`, `install`, `release`, `deploy`; they move into `repo` one by one (see `CONTEXT.md`).
+- **`dotfiles project`** still handles `deploy`; they move into `repo` one by one (see `CONTEXT.md`).
 - **Prerequisites:** `git` and `gh` on `PATH`; templates are read from `~/dotfiles/project-templates` (`PROJECT_REPO_ROOT` / `DOTFILES_REPO_ROOT` override the root).
 - **actit** (Rust library, pinned by commit) checks that the name is free on GitHub, under any owner, through `gh`.
 
@@ -42,6 +42,7 @@ repo workspace add NAME [--clone URL | --init TYPE] # adopt ./NAME, or clone / s
 repo workspace remove NAME                          # forget the folder; the directory stays
 repo install NAME [--package P] [--bin B] [--force]   # cargo install --path of a registered, clean, committed project, through the heavy queue
 repo release [--require-audit] [--path DIR] [--script PATH] [ARGS...]   # run the project's release script with the profile and .envrc loaded
+repo run NAME-OR-DIR [VERB [ARGS...]]               # run a Makefile target, melos script or cargo/flutter command; no VERB lists them
 repo doctor [PATH]                                 # one-glance health: git, open PRs and CI (gh via actautoma), TODO/FIXME, licence, audit
 repo audit [PATH]                                  # env vars / CI secrets a project references, and where each is fulfilled
 repo doctor | …                                     # forwarded to `dotfiles project`
