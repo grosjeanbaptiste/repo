@@ -33,6 +33,16 @@ impl Fake {
         self
     }
 
+    /// Like `answering`, but wins over the answers already given.
+    pub fn overriding(
+        mut self,
+        prefix: &'static str,
+        r: std::result::Result<&'static str, &'static str>,
+    ) -> Self {
+        self.answers.insert(0, (prefix, r));
+        self
+    }
+
     pub fn host<'a>(&'a self, has: &'a dyn Fn(&str) -> bool) -> Host<'a> {
         Host {
             has_tool: has,

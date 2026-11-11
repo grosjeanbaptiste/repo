@@ -1,7 +1,8 @@
 //! Test doubles for the two seams: GitHub (`RepoNames`) and `dotfiles` (`Scaffold`).
 use crate::pipeline::Scaffold;
 use actautoma::forge::{
-    Error as ForgeError, Forge, Mergeable, NewPullRequest, NewRepo, PullRequest, Repo,
+    CiRun, Error as ForgeError, Forge, Mergeable, NewPullRequest, NewRepo, OpenPr, PullRequest,
+    Repo,
 };
 use actit::contains::Listing;
 use actit::error::Error;
@@ -111,8 +112,10 @@ pub struct FakeForge {
     /// Mergeability answered by the views after the first, in order; `Unknown` when exhausted.
     polls: RefCell<Vec<Mergeable>>,
     views: Cell<usize>,
+    open: Vec<OpenPr>,
+    run: Option<CiRun>,
     /// The operation that fails: `view`, `poll` (any view after the first), `merge`, `create`,
-    /// `view_repo`, `set_default_branch`, `create_repo`, `available`.
+    /// `view_repo`, `set_default_branch`, `create_repo`, `available`, `open_prs`, `last_run`.
     fail: Option<&'static str>,
 }
 
@@ -138,6 +141,8 @@ impl FakeForge {
             repo,
             polls: RefCell::default(),
             views: Cell::new(0),
+            open: vec![],
+            run: None,
             fail: None,
         }
     }
@@ -148,6 +153,18 @@ impl FakeForge {
             slug: slug.into(),
             default_branch: default_branch.into(),
         };
+        self
+    }
+
+    /// The open pull requests `open_prs` answers with.
+    pub fn open(mut self, prs: Vec<OpenPr>) -> Self {
+        self.open = prs;
+        self
+    }
+
+    /// The CI run `last_run` answers with.
+    pub fn running(mut self, run: CiRun) -> Self {
+        self.run = Some(run);
         self
     }
 
@@ -231,6 +248,18 @@ impl Forge for FakeForge {
         );
         self.calls.borrow_mut().push(line);
         self.check("create_repo")
+    }
+
+    fn open_prs(&self) -> Result<Vec<OpenPr>, ForgeError> {
+        self.calls.borrow_mut().push("open_prs".into());
+        self.check("open_prs")?;
+        Ok(self.open.clone())
+    }
+
+    fn last_run(&self, branch: &str) -> Result<Option<CiRun>, ForgeError> {
+        self.calls.borrow_mut().push(format!("last_run {branch}"));
+        self.check("last_run")?;
+        Ok(self.run.clone())
     }
 
     fn available(&self) -> Result<(), ForgeError> {

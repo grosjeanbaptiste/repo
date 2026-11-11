@@ -7,8 +7,8 @@ description = "Manage git repositories: names from actname, scaffolding and stat
 
 [dependencies]
 actname = { git = "ssh://git@github.com/grosjeanbaptiste/Actname.git", rev = "001768ae0b3ee3e68a5c4f6266186eb0bb922e98" }
-actit = { git = "ssh://git@github.com/grosjeanbaptiste/Actit.git", rev = "258a258b85dacb83317d8515605f4b77a754e9b2" }
-actautoma = { git = "https://github.com/grosjeanbaptiste/actautoma", rev = "d0abc17fb5eab4f4e7af60ac405043b5a2180aa9" }
+actit = { git = "ssh://git@github.com/grosjeanbaptiste/Actit.git", rev = "f92cfecb74a430d9972e1e58f8884347edcf47d4" }
+actautoma = { git = "https://github.com/grosjeanbaptiste/actautoma", rev = "c0af5152c6f1aa8cedc32ba44bfad7b27cdde4da" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }

@@ -2,6 +2,7 @@
 mod audit;
 mod branch;
 mod delegate;
+mod doctor;
 #[cfg(test)]
 mod fakes;
 mod license;
@@ -129,6 +130,11 @@ enum Cmd {
         #[arg(default_value = ".")]
         path: String,
     },
+    /// One-glance health report: git, open PRs and CI, quality signals, licence, audit.
+    Doctor {
+        #[arg(default_value = ".")]
+        path: String,
+    },
     /// Folders of the current `*.code-workspace`: list, add, remove, status, push.
     Workspace {
         #[command(subcommand)]
@@ -211,6 +217,7 @@ fn main() -> Result<()> {
             }
         },
         Cmd::Audit { path } => audit::command::run(Path::new(&path)),
+        Cmd::Doctor { path } => doctor::command::command(Path::new(&path)),
         Cmd::Other(args) => delegate::project(&args),
         Cmd::RenameBranch {
             path,
