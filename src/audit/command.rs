@@ -4,9 +4,16 @@ use super::{resolve, which};
 use crate::registry::file::state_root;
 use crate::scaffold::native::Quiet;
 use anyhow::{Context, Result, bail};
+use std::io::Write;
 use std::path::Path;
 
 pub fn run(path: &Path) -> Result<()> {
+    let (mut out, mut err) = (std::io::stdout().lock(), std::io::stderr().lock());
+    run_to(path, &mut out, &mut err)
+}
+
+/// The audit of `path` on the real environment, its report written to `out` and warnings to `err`.
+pub fn run_to(path: &Path, mut out: &mut dyn Write, mut err: &mut dyn Write) -> Result<()> {
     if !path.is_dir() {
         bail!("audit: path is not a directory: {}", path.display());
     }
@@ -24,6 +31,5 @@ pub fn run(path: &Path) -> Result<()> {
         has_tool: &has_tool,
         exec: &Quiet,
     };
-    let (mut out, mut err) = (std::io::stdout().lock(), std::io::stderr().lock());
     super::run(&root, &status, &host, &mut out, &mut err)
 }
