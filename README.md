@@ -40,6 +40,7 @@ repo pr merge [N] [--yes]                           # merge commit, branch delet
 repo workspace list | status | push [-n]            # folders of the nearest *.code-workspace ($DOTFILES_WORKSPACE_FILE overrides)
 repo workspace add NAME [--clone URL | --init TYPE] # adopt ./NAME, or clone / scaffold it first
 repo workspace remove NAME                          # forget the folder; the directory stays
+repo install NAME [--package P] [--bin B] [--force]   # cargo install --path of a registered, clean, committed project, through the heavy queue
 repo doctor [PATH]                                 # one-glance health: git, open PRs and CI (gh via actautoma), TODO/FIXME, licence, audit
 repo audit [PATH]                                  # env vars / CI secrets a project references, and where each is fulfilled
 repo doctor | …                                     # forwarded to `dotfiles project`

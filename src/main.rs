@@ -5,6 +5,7 @@ mod delegate;
 mod doctor;
 #[cfg(test)]
 mod fakes;
+mod install;
 mod license;
 mod naming;
 mod pipeline;
@@ -135,6 +136,19 @@ enum Cmd {
         #[arg(default_value = ".")]
         path: String,
     },
+    /// Install a registered Cargo project on PATH (clean, committed, with Cargo.lock; through the heavy queue).
+    Install {
+        name: String,
+        /// Install one member of a Cargo workspace.
+        #[arg(long)]
+        package: Option<String>,
+        /// Install only this binary.
+        #[arg(long)]
+        bin: Option<String>,
+        /// Replace an existing binary from this project.
+        #[arg(long)]
+        force: bool,
+    },
     /// Folders of the current `*.code-workspace`: list, add, remove, status, push.
     Workspace {
         #[command(subcommand)]
@@ -217,6 +231,17 @@ fn main() -> Result<()> {
             }
         },
         Cmd::Audit { path } => audit::command::run(Path::new(&path)),
+        Cmd::Install {
+            name,
+            package,
+            bin,
+            force,
+        } => install::command::command(&install::Opts {
+            name,
+            package,
+            bin,
+            force,
+        }),
         Cmd::Doctor { path } => doctor::command::command(Path::new(&path)),
         Cmd::Other(args) => delegate::project(&args),
         Cmd::RenameBranch {
