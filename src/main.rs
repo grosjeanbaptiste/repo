@@ -15,8 +15,8 @@ mod root;
 mod scaffold;
 mod workspace;
 
-use actit::github::GhNames;
-use actit::process::KagProcess;
+use actautoma::{gh::Gh, process::ProcessRunner};
+use actit::forge_names::ForgeNames;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use naming::Query;
@@ -302,7 +302,7 @@ fn main() -> Result<()> {
                 no_push,
                 dry_run,
             };
-            let names = GhNames::new(KagProcess::new("gh"));
+            let names = ForgeNames::new(Gh::new(ProcessRunner));
             let name = if via_dotfiles {
                 pipeline::run(&opts, &names, &Dotfiles)?
             } else {
