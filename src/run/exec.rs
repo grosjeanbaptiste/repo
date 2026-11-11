@@ -1,11 +1,14 @@
 //! Runs one verb of a project (port of `project_tools_run_exec`).
 use super::targets::{self, Hook, Kind};
 use anyhow::{Context, Result, bail};
+use std::fs;
 use std::io::Write;
 use std::path::Path;
 
 /// Runs a program with inherited stdio and returns its exit code; `Err` only when it cannot start.
 pub trait Runner {
+    /// The program that starts this very tool (`repo`), for the verbs it now answers itself.
+    fn me(&self) -> String;
     fn run(&self, prog: &str, args: &[String], cwd: Option<&Path>) -> Result<i32>;
 }
 
@@ -26,6 +29,36 @@ fn delegate(dir: &Path, verb: &str, args: &[String], runner: &dyn Runner) -> Res
     ];
     all.extend(args.iter().cloned());
     finish(runner.run("dotfiles", &all, None)?)
+}
+
+/// `publish ENV STORE [OPTIONS]`: the project's TestFlight script when it has one, else `repo deploy`.
+fn publish(
+    dir: &Path,
+    args: &[String],
+    runner: &dyn Runner,
+    err: &mut dyn Write,
+) -> Result<Outcome> {
+    let shown = dir.display().to_string();
+    let me = runner.me();
+    if fs::File::open(dir.join("stores/scripts/tf_release.py")).is_ok() {
+        if (args[0].as_str(), args[1].as_str()) != ("test", "ios") {
+            return usage(
+                err,
+                "This Dioxus release script supports TestFlight only: use publish test ios.".into(),
+            );
+        }
+        let mut all = vec!["release".to_string(), "--path".into(), shown];
+        all.extend(args[2..].iter().cloned());
+        return finish(runner.run(&me, &all, None)?);
+    }
+    let mut all = vec![
+        "deploy".to_string(),
+        args[0].clone(),
+        args[1].clone(),
+        shown,
+    ];
+    all.extend(args[2..].iter().cloned());
+    finish(runner.run(&me, &all, None)?)
 }
 
 fn finish(code: i32) -> Result<Outcome> {
@@ -58,7 +91,7 @@ fn universal(
             )
             .map(Some);
         }
-        return delegate(dir, verb, args, runner).map(Some);
+        return publish(dir, args, runner, err).map(Some);
     }
     let hook = targets::hook(dir);
     if verb != "install" || (hook == Hook::Absent && !dir.join("pubspec.yaml").is_file()) {

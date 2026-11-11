@@ -70,14 +70,6 @@ impl Fx {
             .output())
     }
 
-    /// Where `repo` was started: tools without a project directory inherit it.
-    fn cwd_name(&self) -> String {
-        self.base
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default()
-    }
-
     fn calls(&self) -> Vec<String> {
         fs::read_to_string(self.base.join("calls.log"))
             .unwrap_or_default()
@@ -162,18 +154,18 @@ fn an_unknown_project_is_named() {
 }
 
 #[test]
-fn publish_goes_to_dotfiles_and_help_flags_reach_the_project_command() {
+fn publish_is_answered_by_repo_deploy_and_help_flags_reach_the_project_command() {
     let f = fx(&[("Cargo.toml", "")]);
-    let o = f.repo(&["app", "publish", "test", "ios"], &[]);
+    let o = f.repo(&["app", "publish", "test", "ios", "--dry-run"], &[]);
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
     assert_eq!(
-        f.calls(),
-        vec![format!(
-            "dotfiles|{}|project {} publish test ios",
-            f.cwd_name(),
+        out(&o),
+        format!(
+            "flutter build ipa --release (cwd {}) then publish ios to test\n",
             f.project.display()
-        )]
+        )
     );
+    assert!(f.calls().is_empty(), "no dotfiles detour: {:?}", f.calls());
     let o = f.repo(&["app", "build", "--help"], &[]);
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
     assert!(

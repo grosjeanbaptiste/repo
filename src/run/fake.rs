@@ -23,6 +23,10 @@ impl Fake {
 }
 
 impl Runner for Fake {
+    fn me(&self) -> String {
+        "repo-bin".into()
+    }
+
     fn run(&self, prog: &str, args: &[String], cwd: Option<&Path>) -> Result<i32> {
         if self.spawn_error {
             anyhow::bail!("{prog}: not found");

@@ -43,7 +43,7 @@ repo workspace remove NAME                          # forget the folder; the dir
 repo install NAME [--package P] [--bin B] [--force]   # cargo install --path of a registered, clean, committed project, through the heavy queue
 repo release [--require-audit] [--path DIR] [--script PATH] [ARGS...]   # run the project's release script with the profile and .envrc loaded
 repo deploy ENV TARGET [PATH] [--project N] [-y] [--dry-run] [--store-page]   # build + publish: web (Cloudflare Pages), ios, android, mas, homebrew, windows, linux, all
-repo run NAME-OR-DIR [VERB [ARGS...]]               # run a Makefile target, melos script or cargo/flutter command; no VERB lists them
+repo run NAME-OR-DIR [VERB [ARGS...]]               # run a Makefile target, melos script or cargo/flutter command (publish = repo deploy/release); no VERB lists them
 repo doctor [PATH]                                 # one-glance health: git, open PRs and CI (gh via actautoma), TODO/FIXME, licence, audit
 repo audit [PATH]                                  # env vars / CI secrets a project references, and where each is fulfilled
 repo doctor | …                                     # forwarded to `dotfiles project`
