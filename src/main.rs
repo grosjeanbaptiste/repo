@@ -12,6 +12,7 @@ mod pipeline;
 mod pr;
 mod push;
 mod registry;
+mod release;
 mod root;
 mod scaffold;
 mod workspace;
@@ -149,6 +150,12 @@ enum Cmd {
         #[arg(long)]
         force: bool,
     },
+    /// Run the project's release script with the machine profile and `.envrc` loaded (see `repo release help`).
+    #[command(disable_help_flag = true)]
+    Release {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Folders of the current `*.code-workspace`: list, add, remove, status, push.
     Workspace {
         #[command(subcommand)]
@@ -242,6 +249,7 @@ fn main() -> Result<()> {
             bin,
             force,
         }),
+        Cmd::Release { args } => release::command::command(&args),
         Cmd::Doctor { path } => doctor::command::command(Path::new(&path)),
         Cmd::Other(args) => delegate::project(&args),
         Cmd::RenameBranch {
