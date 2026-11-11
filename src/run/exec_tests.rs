@@ -161,12 +161,33 @@ fn publish_needs_an_environment_and_a_store() {
 }
 
 #[test]
-fn publish_is_delegated_to_dotfiles_with_every_argument() {
+fn publish_runs_repo_deploy_on_the_directory_with_every_option() {
     let d = project(&[("Makefile", "publish:\n")]);
     let r = Fake::exiting(5);
     let (o, _) = go(d.path(), "publish", &["test", "ios", "--dry-run"], &r);
     assert_eq!(ok(o), Outcome::Failed(5));
-    assert_eq!(calls(&r), vec![("dotfiles".into(), s(&["project", &dir_arg(d.path()), "publish", "test", "ios", "--dry-run"]))]);
+    assert_eq!(
+        calls(&r),
+        vec![("repo-bin".into(), s(&["deploy", "test", "ios", &dir_arg(d.path()), "--dry-run"]))]
+    );
+}
+
+#[test]
+fn a_store_release_script_routes_publish_to_repo_release_for_testflight_only() {
+    let d = project(&[("stores/scripts/tf_release.py", "x")]);
+    let r = Fake::exiting(0);
+    ok(go(d.path(), "publish", &["test", "ios", "--x"], &r).0);
+    assert_eq!(
+        calls(&r),
+        vec![("repo-bin".into(), s(&["release", "--path", &dir_arg(d.path()), "--x"]))]
+    );
+    for args in [["prod", "ios"], ["test", "android"]] {
+        let r = Fake::exiting(0);
+        let (o, e) = go(d.path(), "publish", &args, &r);
+        assert_eq!(ok(o), Outcome::Failed(2));
+        assert_eq!(e, "This Dioxus release script supports TestFlight only: use publish test ios.\n");
+        assert!(calls(&r).is_empty());
+    }
 }
 
 #[test]

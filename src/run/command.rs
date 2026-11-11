@@ -10,6 +10,10 @@ use std::process::Command;
 struct Inherit;
 
 impl Runner for Inherit {
+    fn me(&self) -> String {
+        std::env::current_exe().map_or_else(|_| "repo".into(), |p| p.display().to_string()) // not found: rely on PATH
+    }
+
     fn run(&self, prog: &str, args: &[String], cwd: Option<&Path>) -> Result<i32> {
         let mut cmd = Command::new(prog);
         cmd.args(args);
